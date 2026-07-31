@@ -513,7 +513,7 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
       <div class="card-header">
         <div class="card-title">
           <div class="card-icon" style="background: rgba(236,72,153,0.15); color: var(--accent-finance);">📊</div>
-          Tendencia mensual (ultimos 12 meses)
+          Ingresos vs Gastos (ultimos 12 meses)
         </div>
       </div>
       <div style="height: 200px;"><canvas id="trendChart"></canvas></div>
@@ -534,11 +534,13 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
           <div class="card-icon" style="background: rgba(236,72,153,0.15); color: var(--accent-finance);">💳</div>
           Transacciones
         </div>
-        <div style="display:flex; gap:8px; flex:none;">
+        <div style="display:flex; gap:8px; flex:none; flex-wrap:wrap;">
+          <button class="btn btn-secondary" style="padding: 8px 14px; font-size: 13px;" onclick="exportTransactionsCSV()">⬇️ CSV</button>
           <button class="btn btn-secondary" style="padding: 8px 14px; font-size: 13px;" id="viewToggleBtn" onclick="toggleFinanceView()">📊 Vista rapida</button>
           <button class="btn btn-primary" style="padding: 8px 16px; font-size: 13px;" onclick="openModal('transaction')">+ Agregar</button>
         </div>
       </div>
+      <input type="text" class="form-input" id="txSearchInput" placeholder="🔍 Buscar por nombre o categoria..." oninput="renderTransactions()" style="margin-bottom:12px;">
       <div id="transactionsList"></div>
       <div id="transactionsExcelView" style="display:none;">
         <div class="excel-month-nav">
@@ -575,6 +577,16 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
       </div>
       <div id="recurringList"></div>
     </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon" style="background: rgba(236,72,153,0.15); color: var(--accent-finance);">🎯</div>
+          Metas de ahorro
+        </div>
+        <button class="btn btn-primary" style="padding: 8px 16px; font-size: 13px;" onclick="openModal('savingsGoal')">+ Nueva</button>
+      </div>
+      <div id="savingsGoalsList"></div>
+    </div>
   </div>
 
   <div class="modal-overlay" id="modal">
@@ -601,7 +613,8 @@ let appData = {
   notes: '',
   pomodoro_sessions: [],
   habitLogs: [],
-  recurringTransactions: []
+  recurringTransactions: [],
+  savingsGoals: []
 };
 
 let isOnline = navigator.onLine;
@@ -711,7 +724,7 @@ async function handleAuth() {
 async function logout() {
   await supabaseClient.auth.signOut();
   currentUser = null;
-  appData = { habits: [], workouts: [], subjects: [], transactions: [], budgets: [], notes: '', pomodoro_sessions: [], habitLogs: [], recurringTransactions: [] };
+  appData = { habits: [], workouts: [], subjects: [], transactions: [], budgets: [], notes: '', pomodoro_sessions: [], habitLogs: [], recurringTransactions: [], savingsGoals: [] };
   showAuth();
 }
 
@@ -723,7 +736,7 @@ async function loadData() {
       tenDaysAgo.setDate(tenDaysAgo.getDate() - 9);
       const tenDaysAgoStr = tenDaysAgo.toISOString().slice(0, 10);
 
-      const [habitsRes, workoutsRes, subjectsRes, txRes, budgetsRes, notesRes, logsRes, recurringRes] = await Promise.all([
+      const [habitsRes, workoutsRes, subjectsRes, txRes, budgetsRes, notesRes, logsRes, recurringRes, goalsRes] = await Promise.all([
         supabaseClient.from('habits').select('*').eq('user_id', currentUser.id),
         supabaseClient.from('workouts').select('*').eq('user_id', currentUser.id),
         supabaseClient.from('subjects').select('*').eq('user_id', currentUser.id),
@@ -731,7 +744,8 @@ async function loadData() {
         supabaseClient.from('budgets').select('*').eq('user_id', currentUser.id),
         supabaseClient.from('notes').select('*').eq('user_id', currentUser.id).maybeSingle(),
         supabaseClient.from('habit_logs').select('*').eq('user_id', currentUser.id).gte('log_date', tenDaysAgoStr),
-        supabaseClient.from('recurring_transactions').select('*').eq('user_id', currentUser.id)
+        supabaseClient.from('recurring_transactions').select('*').eq('user_id', currentUser.id),
+        supabaseClient.from('savings_goals').select('*').eq('user_id', currentUser.id)
       ]);
       const habits = habitsRes.data || [];
       const workouts = workoutsRes.data || [];
@@ -741,6 +755,7 @@ async function loadData() {
       const notes = notesRes.data;
       const habitLogs = logsRes.data || [];
       const recurringTransactions = recurringRes.data || [];
+      const savingsGoals = goalsRes.data || [];
 
       const isBrandNewUser = habits.length === 0 && workouts.length === 0 &&
         subjects.length === 0 && transactions.length === 0 &&
@@ -755,6 +770,7 @@ async function loadData() {
         appData.notes = '';
         appData.habitLogs = [];
         appData.recurringTransactions = [];
+        appData.savingsGoals = [];
         setTimeout(showWelcomeOnboarding, 400);
       } else {
         appData.habits = habits;
@@ -765,6 +781,7 @@ async function loadData() {
         appData.notes = notes ? (notes.content || '') : '';
         appData.habitLogs = habitLogs;
         appData.recurringTransactions = recurringTransactions;
+        appData.savingsGoals = savingsGoals;
         await runRecurringCheck();
       }
       cacheLocal();
@@ -785,7 +802,7 @@ function loadFromLocal() {
   if (saved) {
     appData = JSON.parse(saved);
   } else {
-    appData = { habits: [], workouts: [], subjects: [], transactions: [], budgets: [], notes: '', pomodoro_sessions: [], habitLogs: [], recurringTransactions: [] };
+    appData = { habits: [], workouts: [], subjects: [], transactions: [], budgets: [], notes: '', pomodoro_sessions: [], habitLogs: [], recurringTransactions: [], savingsGoals: [] };
     setTimeout(showWelcomeOnboarding, 400);
   }
 }
@@ -849,6 +866,7 @@ async function pushAllToSupabase() {
     for (const budget of appData.budgets) await dbUpsert('budgets', budget, 'user_id,category');
     for (const log of appData.habitLogs) await dbUpsert('habit_logs', log, 'habit_id,log_date');
     for (const rec of appData.recurringTransactions) await dbUpsert('recurring_transactions', rec);
+    for (const goal of appData.savingsGoals) await dbUpsert('savings_goals', goal);
     await dbUpsert('notes', { content: appData.notes }, 'user_id');
     updateSyncStatus(true);
   } catch (e) {
@@ -887,6 +905,7 @@ function renderAll() {
   renderTransactions();
   renderBudgets();
   renderRecurring();
+  renderSavingsGoals();
   renderDashboard();
   renderNextSteps();
   loadNotes();
@@ -1584,6 +1603,9 @@ function updateTxField(id, field, rawValue) {
   renderTransactions();
   renderDashboard();
   renderBudgets();
+  if (t.type === 'expense' && (field === 'amount' || field === 'category' || field === 'type')) {
+    checkBudgetAlert(t.category);
+  }
   // solo sincronizamos si ya tiene nombre (la columna es obligatoria en Supabase)
   if (t.name && t.name.trim()) {
     dbUpsert('transactions', t);
@@ -1607,13 +1629,20 @@ function addExcelRow() {
   renderExcelView();
 }
 
+function getSearchedTransactions() {
+  const term = (document.getElementById('txSearchInput')?.value || '').toLowerCase().trim();
+  const inRange = getTransactionsInRange();
+  if (!term) return inRange;
+  return inRange.filter(t => t.name.toLowerCase().includes(term) || t.category.toLowerCase().includes(term));
+}
+
 function renderTransactions() {
   const list = document.getElementById('transactionsList');
-  const filtered = getTransactionsInRange();
+  const filtered = getSearchedTransactions();
   if (appData.transactions.length === 0) {
     list.innerHTML = emptyState('💰', 'Aún no tienes transacciones. Registra la primera con el botón de abajo.');
   } else if (filtered.length === 0) {
-    list.innerHTML = emptyState('🔍', 'No hay transacciones en el rango seleccionado.');
+    list.innerHTML = emptyState('🔍', 'No hay transacciones que coincidan con tu busqueda o el rango seleccionado.');
   } else {
     list.innerHTML = filtered.slice().sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)).map(t => `
     <div class="transaction-item">
@@ -1633,6 +1662,33 @@ function renderTransactions() {
   if (financeViewMode === 'excel' && excelMonthValue) renderExcelView();
 }
 
+// exporta las transacciones actualmente visibles (rango + busqueda) a un archivo CSV descargable
+function exportTransactionsCSV() {
+  const rows = getSearchedTransactions().slice().sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
+  if (rows.length === 0) {
+    showToast('No hay transacciones para exportar con este filtro', 'error');
+    return;
+  }
+  const header = ['Fecha', 'Nombre', 'Categoria', 'Tipo', 'Monto'];
+  const csvLines = [header.join(',')];
+  rows.forEach(t => {
+    const dateStr = t.created_at ? toLocalDateStr(new Date(t.created_at)) : '';
+    const safe = (s) => `"${String(s).replace(/"/g, '""')}"`;
+    csvLines.push([dateStr, safe(t.name), safe(t.category), t.type === 'income' ? 'Ingreso' : 'Gasto', Math.abs(t.amount)].join(','));
+  });
+  const csvContent = csvLines.join('\n');
+  const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `lifeos-transacciones-${toLocalDateStr(new Date())}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('CSV exportado', 'success');
+}
+
 function updateFinanceSummary() {
   const filtered = getTransactionsInRange();
   const income = filtered.filter(t => t.type === 'income').reduce((a, b) => a + b.amount, 0);
@@ -1649,6 +1705,13 @@ function updateFinanceSummary() {
 function expenseForMonth(y, m) {
   return appData.transactions
     .filter(t => t.type === 'expense' && t.created_at)
+    .filter(t => { const d = new Date(t.created_at); return d.getFullYear() === y && d.getMonth() === m; })
+    .reduce((s, t) => s + Math.abs(t.amount), 0);
+}
+
+function incomeForMonth(y, m) {
+  return appData.transactions
+    .filter(t => t.type === 'income' && t.created_at)
     .filter(t => { const d = new Date(t.created_at); return d.getFullYear() === y && d.getMonth() === m; })
     .reduce((s, t) => s + Math.abs(t.amount), 0);
 }
@@ -1673,29 +1736,37 @@ function renderExpenseTrendBadge(currentExpense) {
   }
 }
 
-// grafico de barras con el gasto total de los ultimos 12 meses, independiente del filtro de rango activo
+// grafico de barras con ingresos vs gastos de los ultimos 12 meses, independiente del filtro de rango activo
 let trendChartInstance = null;
 function renderTrendChart() {
   const canvas = document.getElementById('trendChart');
   if (!canvas) return;
   const now = new Date();
   const labels = [];
-  const data = [];
+  const expenseData = [];
+  const incomeData = [];
   for (let i = 11; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     labels.push(d.toLocaleDateString('es-ES', { month: 'short', year: '2-digit' }));
-    data.push(expenseForMonth(d.getFullYear(), d.getMonth()));
+    expenseData.push(expenseForMonth(d.getFullYear(), d.getMonth()));
+    incomeData.push(incomeForMonth(d.getFullYear(), d.getMonth()));
   }
   if (trendChartInstance) trendChartInstance.destroy();
   trendChartInstance = new Chart(canvas, {
     type: 'bar',
-    data: { labels, datasets: [{ label: 'Gastos', data, backgroundColor: '#ef4444', borderRadius: 4 }] },
+    data: {
+      labels,
+      datasets: [
+        { label: 'Ingresos', data: incomeData, backgroundColor: '#22c55e', borderRadius: 4 },
+        { label: 'Gastos', data: expenseData, backgroundColor: '#ef4444', borderRadius: 4 }
+      ]
+    },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label: (ctx) => ` S/ ${ctx.parsed.y.toLocaleString()}` } }
+        legend: { position: 'top', labels: { color: '#8a8a9a', font: { size: 11 }, boxWidth: 12 } },
+        tooltip: { callbacks: { label: (ctx) => ` ${ctx.dataset.label}: S/ ${ctx.parsed.y.toLocaleString()}` } }
       },
       scales: {
         x: { grid: { display: false }, ticks: { color: '#8a8a9a', font: { size: 10 } } },
@@ -1767,6 +1838,19 @@ function spentThisMonthForCategory(category) {
     .reduce((sum, t) => sum + Math.abs(t.amount), 0);
 }
 
+// avisa si un gasto te deja cerca o por encima del limite de presupuesto de su categoria
+function checkBudgetAlert(category) {
+  const budget = appData.budgets.find(b => b.category === category);
+  if (!budget || !budget.budget_limit) return;
+  const spent = spentThisMonthForCategory(category);
+  const pct = spent / budget.budget_limit;
+  if (pct >= 1) {
+    showToast(`Te pasaste del presupuesto de ${category}: S/ ${spent.toLocaleString()} / S/ ${budget.budget_limit.toLocaleString()}`, 'error');
+  } else if (pct >= 0.8) {
+    showToast(`Vas en ${Math.round(pct * 100)}% de tu presupuesto de ${category}`, 'error');
+  }
+}
+
 function renderBudgets() {
   const list = document.getElementById('budgetList');
   if (appData.budgets.length === 0) {
@@ -1807,6 +1891,90 @@ async function deleteBudget(category) {
 function editBudget(category) {
   const b = appData.budgets.find(x => x.category === category);
   if (b) openModal('budget', b);
+}
+
+// ---------- metas de ahorro ----------
+function renderSavingsGoals() {
+  const list = document.getElementById('savingsGoalsList');
+  if (!list) return;
+  if (appData.savingsGoals.length === 0) {
+    list.innerHTML = emptyState('🎯', 'Aún no tienes metas de ahorro. Crea la primera con el botón de arriba.');
+    return;
+  }
+  list.innerHTML = appData.savingsGoals.map(g => {
+    const pct = Math.min(100, Math.round((g.current_amount / g.target_amount) * 100));
+    const reached = g.current_amount >= g.target_amount;
+    const dateInfo = g.target_date ? ` · para ${new Date(g.target_date + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}` : '';
+    return `
+      <div class="budget-bar">
+        <div class="budget-header">
+          <span>${reached ? '🎉 ' : ''}${g.name}${dateInfo}</span>
+          <span style="display:flex; align-items:center; gap:8px;">
+            <span style="color: var(--text-muted);">S/ ${g.current_amount.toLocaleString()} / S/ ${g.target_amount.toLocaleString()}</span>
+            ${reached ? '' : `<span class="delete-icon" onclick="openAddToGoal(${g.id})" title="Agregar dinero">➕</span>`}
+            <span class="delete-icon" onclick="deleteSavingsGoal(${g.id})" title="Eliminar">🗑</span>
+          </span>
+        </div>
+        <div class="budget-track">
+          <div class="budget-fill" style="width: ${pct}%; background: ${reached ? 'var(--success)' : g.color};"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function addSavingsGoal() {
+  const name = document.getElementById('newGoalName').value.trim();
+  const target = parseFloat(document.getElementById('newGoalTarget').value);
+  const current = parseFloat(document.getElementById('newGoalCurrent').value) || 0;
+  const date = document.getElementById('newGoalDate').value || null;
+  const color = document.getElementById('newGoalColor').value;
+  if (!name || isNaN(target) || target <= 0) {
+    alert('Ponle un nombre y un monto objetivo valido 🙂');
+    return;
+  }
+  const goal = { id: Date.now(), name, target_amount: target, current_amount: current, target_date: date, color, user_id: currentUser?.id };
+  appData.savingsGoals.push(goal);
+  cacheLocal();
+  closeModal();
+  renderSavingsGoals();
+  showToast('Meta de ahorro creada', 'success');
+  await dbUpsert('savings_goals', goal);
+}
+
+function openAddToGoal(id) {
+  const g = appData.savingsGoals.find(x => x.id === id);
+  if (g) openModal('addToGoal', g);
+}
+
+async function addToGoal(id) {
+  const g = appData.savingsGoals.find(x => x.id === id);
+  const amount = parseFloat(document.getElementById('addGoalAmount').value);
+  if (!g || isNaN(amount) || amount <= 0) return;
+  const wasReached = g.current_amount >= g.target_amount;
+  g.current_amount += amount;
+  cacheLocal();
+  closeModal();
+  renderSavingsGoals();
+  const nowReached = g.current_amount >= g.target_amount;
+  if (!wasReached && nowReached) {
+    celebrateConfetti();
+    showToast(`¡Meta "${g.name}" alcanzada! 🎉`, 'success');
+  } else {
+    showToast('Ahorro registrado', 'success');
+  }
+  await dbUpsert('savings_goals', g);
+}
+
+async function deleteSavingsGoal(id) {
+  const g = appData.savingsGoals.find(x => x.id === id);
+  if (!g) return;
+  if (!confirm(`¿Eliminar la meta "${g.name}"?`)) return;
+  appData.savingsGoals = appData.savingsGoals.filter(x => x.id !== id);
+  cacheLocal();
+  renderSavingsGoals();
+  showToast('Meta eliminada');
+  await dbDelete('savings_goals', { id });
 }
 
 // ---------- transacciones recurrentes ----------
@@ -2055,6 +2223,21 @@ function openModal(type, editData) {
       <div class="form-group"><label class="form-label">Categoria</label><select class="form-select" id="newRecCategory"></select></div>
       <div class="form-group"><label class="form-label">Dia del mes</label><input type="number" class="form-input" id="newRecDay" min="1" max="28" value="1"></div>
       <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="addRecurring()">Crear</button></div>`;
+  } else if (type === 'savingsGoal') {
+    const colors = ['#6366f1', '#10b981', '#f59e0b', '#3b82f6', '#ec4899', '#8b5cf6'];
+    html = `<div class="modal-title">Nueva meta de ahorro</div>
+      <div class="form-group"><label class="form-label">Nombre</label><input type="text" class="form-input" id="newGoalName" placeholder="Ej: Viaje a Cusco"></div>
+      <div class="form-group"><label class="form-label">Monto objetivo</label><input type="number" class="form-input" id="newGoalTarget" placeholder="0"></div>
+      <div class="form-group"><label class="form-label">Ya tengo ahorrado (opcional)</label><input type="number" class="form-input" id="newGoalCurrent" placeholder="0" value="0"></div>
+      <div class="form-group"><label class="form-label">Fecha limite (opcional)</label><input type="date" class="form-input" id="newGoalDate"></div>
+      <div class="form-group"><label class="form-label">Color</label>
+        <select class="form-select" id="newGoalColor">${colors.map(c => `<option value="${c}" style="background:${c};">${c}</option>`).join('')}</select>
+      </div>
+      <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="addSavingsGoal()">Crear</button></div>`;
+  } else if (type === 'addToGoal') {
+    html = `<div class="modal-title">Agregar a "${escapeAttr(editData.name)}"</div>
+      <div class="form-group"><label class="form-label">Monto a agregar</label><input type="number" class="form-input" id="addGoalAmount" placeholder="0"></div>
+      <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="addToGoal(${editData.id})">Agregar</button></div>`;
   } else if (type === 'exercise') {
     html = `<div class="modal-title">Nuevo ejercicio</div>
       <input type="hidden" id="exerciseWorkoutId" value="${editData.workoutId}">
@@ -2231,6 +2414,7 @@ async function addTransaction() {
   renderDashboard();
   renderBudgets();
   showToast(type === 'income' ? 'Ingreso registrado' : 'Gasto registrado', 'success');
+  if (type === 'expense') checkBudgetAlert(category);
   await dbUpsert('transactions', tx);
 }
 
@@ -2264,6 +2448,7 @@ async function updateTransaction(id) {
   renderDashboard();
   renderBudgets();
   showToast('Transaccion actualizada', 'success');
+  if (type === 'expense') checkBudgetAlert(category);
   await dbUpsert('transactions', t);
 }
 
