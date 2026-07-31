@@ -29,6 +29,7 @@
   --shadow-lg: 0 8px 40px rgba(0,0,0,0.5);
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
+html { overflow-x: hidden; max-width: 100%; }
 body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
 .lifeos-container { max-width: 1200px; margin: 0 auto; padding: 0; }
 .lifeos-header { padding: 20px 24px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: rgba(10,10,15,0.95); backdrop-filter: blur(20px); z-index: 100; }
@@ -734,7 +735,7 @@ async function logout() {
 
 async function loadData() {
   if (!currentUser) return;
-  if (isOnline) {
+  {
     try {
       const tenDaysAgo = new Date();
       tenDaysAgo.setDate(tenDaysAgo.getDate() - 9);
@@ -789,14 +790,14 @@ async function loadData() {
         await runRecurringCheck();
       }
       cacheLocal();
+      isOnline = true;
       updateSyncStatus(true);
     } catch (e) {
       console.error('Error cargando datos:', e);
       loadFromLocal();
+      isOnline = false;
       updateSyncStatus(false);
     }
-  } else {
-    loadFromLocal();
   }
   renderAll();
 }
@@ -820,7 +821,6 @@ function cacheLocal() {
 // guarda/actualiza UNA fila en UNA tabla de Supabase
 async function dbUpsert(table, row, onConflict) {
   if (!currentUser) return { error: 'sin usuario' };
-  if (!isOnline) { updateSyncStatus(false); return { error: 'offline' }; }
   try {
     const payload = { ...row, user_id: currentUser.id };
     const opts = onConflict ? { onConflict } : undefined;
@@ -828,10 +828,12 @@ async function dbUpsert(table, row, onConflict) {
       ? await supabaseClient.from(table).upsert(payload, opts)
       : await supabaseClient.from(table).upsert(payload);
     if (error) throw error;
+    isOnline = true;
     updateSyncStatus(true);
     return { error: null };
   } catch (e) {
     console.error(`Error guardando en ${table}:`, e);
+    isOnline = false;
     updateSyncStatus(false);
     showToast('No se pudo guardar en la nube, se guardó localmente', 'error');
     return { error: e };
@@ -841,7 +843,6 @@ async function dbUpsert(table, row, onConflict) {
 // elimina fila(s) de UNA tabla de Supabase que cumplan con 'matches' ({columna: valor}), siempre acotado al usuario actual
 async function dbDelete(table, matches) {
   if (!currentUser) return { error: 'sin usuario' };
-  if (!isOnline) { updateSyncStatus(false); return { error: 'offline' }; }
   try {
     let query = supabaseClient.from(table).delete();
     for (const [col, val] of Object.entries(matches)) {
@@ -849,10 +850,12 @@ async function dbDelete(table, matches) {
     }
     const { error } = await query.eq('user_id', currentUser.id);
     if (error) throw error;
+    isOnline = true;
     updateSyncStatus(true);
     return { error: null };
   } catch (e) {
     console.error(`Error eliminando de ${table}:`, e);
+    isOnline = false;
     updateSyncStatus(false);
     showToast('No se pudo eliminar en la nube, se eliminó localmente', 'error');
     return { error: e };
@@ -1818,7 +1821,7 @@ function renderExpenseChart() {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { position: 'right', labels: { color: '#8a8a9a', font: { size: 11 }, boxWidth: 12 } },
+        legend: { position: 'bottom', labels: { color: '#8a8a9a', font: { size: 11 }, boxWidth: 12, padding: 12 } },
         tooltip: {
           callbacks: {
             label: (ctx) => ` ${ctx.label}: S/ ${ctx.parsed.toLocaleString()}`
