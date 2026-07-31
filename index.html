@@ -64,7 +64,8 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
 @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; transition: all 0.3s ease; }
 .card:hover { border-color: var(--surface-light); transform: translateY(-2px); box-shadow: var(--shadow); }
-.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 12px; }
+.card-header .btn { flex: none; white-space: nowrap; }
 .card-title { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
 .card-icon { width: 36px; height: 36px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 18px; }
 .habit-item { display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: var(--bg); border-radius: var(--radius-sm); margin-bottom: 8px; border: 1px solid transparent; transition: all 0.3s ease; cursor: pointer; }
@@ -147,7 +148,8 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
 .subject-emoji { font-size: 28px; margin-bottom: 8px; }
 .subject-name { font-size: 13px; font-weight: 500; }
 .subject-hours { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
-.finance-range-selector { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; }
+.finance-range-selector { display: flex; gap: 6px; margin-bottom: 16px; overflow-x: auto; padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.range-pill { padding: 7px 14px; font-size: 12px; }
 .range-pill.active { background: var(--accent-primary); color: white; border-color: var(--accent-primary); }
 .finance-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
 .finance-box { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px 12px; text-align: center; }
