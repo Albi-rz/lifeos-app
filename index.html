@@ -482,13 +482,30 @@ let appData = {
 let isOnline = navigator.onLine;
 
 async function init() {
-  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session) {
-    currentUser = session.user;
-    showApp();
-    await loadData();
-  } else {
+  try {
+    // Wait for Supabase library to be available
+    let attempts = 0;
+    while (!window.supabase && attempts < 50) {
+      await new Promise(r => setTimeout(r, 100));
+      attempts++;
+    }
+    if (!window.supabase) {
+      console.error('Supabase library not loaded');
+      showAuth();
+      document.getElementById('loadingOverlay').style.display = 'none';
+      return;
+    }
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      currentUser = session.user;
+      showApp();
+      await loadData();
+    } else {
+      showAuth();
+    }
+  } catch (e) {
+    console.error('Init error:', e);
     showAuth();
   }
   window.addEventListener('online', () => { isOnline = true; updateSyncStatus(); syncData(); });
@@ -499,12 +516,14 @@ async function init() {
 function showAuth() {
   document.getElementById('authContainer').style.display = 'flex';
   document.getElementById('appContainer').style.display = 'none';
+  document.getElementById('loadingOverlay').style.display = 'none';
 }
 
 function showApp() {
   document.getElementById('authContainer').style.display = 'none';
   document.getElementById('appContainer').style.display = 'block';
   document.getElementById('userAvatar').textContent = currentUser.email[0].toUpperCase();
+  document.getElementById('loadingOverlay').style.display = 'none';
   updateDate();
   renderAll();
 }
