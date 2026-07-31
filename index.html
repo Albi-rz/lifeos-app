@@ -243,6 +243,10 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
   .timer-display { font-size: 42px; }
   .subject-grid { grid-template-columns: repeat(2, 1fr); }
   .auth-card { padding: 28px 20px; }
+  .card-header { flex-wrap: wrap; }
+  .card-header .header-actions { width: 100%; flex: none; }
+  .card-header .header-actions .btn { flex: 1 1 auto; font-size: 12px !important; padding: 8px 10px !important; }
+  .finance-range-selector { flex-wrap: nowrap; }
 }
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
@@ -534,7 +538,7 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
           <div class="card-icon" style="background: rgba(236,72,153,0.15); color: var(--accent-finance);">💳</div>
           Transacciones
         </div>
-        <div style="display:flex; gap:8px; flex:none; flex-wrap:wrap;">
+        <div class="header-actions" style="display:flex; gap:8px; flex:none; flex-wrap:wrap;">
           <button class="btn btn-secondary" style="padding: 8px 14px; font-size: 13px;" onclick="exportTransactionsCSV()">⬇️ CSV</button>
           <button class="btn btn-secondary" style="padding: 8px 14px; font-size: 13px;" id="viewToggleBtn" onclick="toggleFinanceView()">📊 Vista rapida</button>
           <button class="btn btn-primary" style="padding: 8px 16px; font-size: 13px;" onclick="openModal('transaction')">+ Agregar</button>
