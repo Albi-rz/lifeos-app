@@ -147,6 +147,8 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
 .subject-emoji { font-size: 28px; margin-bottom: 8px; }
 .subject-name { font-size: 13px; font-weight: 500; }
 .subject-hours { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+.finance-range-selector { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; }
+.range-pill.active { background: var(--accent-primary); color: white; border-color: var(--accent-primary); }
 .finance-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
 .finance-box { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px 12px; text-align: center; }
 .finance-box .label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
@@ -451,6 +453,17 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
   </div>
 
   <div class="lifeos-section" id="finance">
+    <div class="finance-range-selector" id="financeRangeSelector">
+      <button class="nav-pill range-pill active" data-range="month" onclick="setFinanceRange('month')">Este mes</button>
+      <button class="nav-pill range-pill" data-range="quarter" onclick="setFinanceRange('quarter')">Trimestre</button>
+      <button class="nav-pill range-pill" data-range="year" onclick="setFinanceRange('year')">Año</button>
+      <button class="nav-pill range-pill" data-range="all" onclick="setFinanceRange('all')">Todo</button>
+      <button class="nav-pill range-pill" data-range="custom" onclick="setFinanceRange('custom')">Personalizado</button>
+    </div>
+    <div id="customRangeInputs" style="display:none; gap:8px; margin: 0 0 16px 0;">
+      <input type="date" id="customRangeStart" class="form-input" style="margin-bottom:0;" onchange="applyCustomRange()">
+      <input type="date" id="customRangeEnd" class="form-input" style="margin-bottom:0;" onchange="applyCustomRange()">
+    </div>
     <div class="finance-summary">
       <div class="finance-box income">
         <div class="label">Ingresos</div>
@@ -464,6 +477,16 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
         <div class="label">Balance</div>
         <div class="amount" id="totalBalance">S/ 0</div>
       </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon" style="background: rgba(236,72,153,0.15); color: var(--accent-finance);">📈</div>
+          Gastos por categoria
+        </div>
+      </div>
+      <div id="expenseChartEmpty" style="display:none;"></div>
+      <div style="height: 220px;"><canvas id="expenseChart"></canvas></div>
     </div>
     <div class="card">
       <div class="card-header">
@@ -927,9 +950,26 @@ function renderCalendar() {
     const dayNum = d.getDate();
     const doneCount = isToday ? appData.habits.filter(h => h.done).length : countHabitLogsForDate(dateStr);
     const dots = doneCount > 0 ? `<div class="day-dots">${'<div class="day-dot" style="background: var(--accent-habits);"></div>'.repeat(Math.min(doneCount, 3))}</div>` : '<div class="day-dots"></div>';
-    html += `<div class="day-pill ${isToday ? 'today' : ''}"><div class="day-name">${dayName}</div><div class="day-num">${dayNum}</div>${dots}</div>`;
+    html += `<div class="day-pill ${isToday ? 'today' : ''}" onclick="showDayDetail('${dateStr}')"><div class="day-name">${dayName}</div><div class="day-num">${dayNum}</div>${dots}</div>`;
   }
   strip.innerHTML = html;
+}
+
+// muestra que habitos se completaron en un dia especifico del calendario
+function showDayDetail(dateStr) {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const isToday = dateStr === todayStr;
+  let habitNames;
+  if (isToday) {
+    habitNames = appData.habits.filter(h => h.done).map(h => h.name);
+  } else {
+    const logs = appData.habitLogs.filter(l => l.log_date === dateStr && l.done);
+    habitNames = logs.map(l => {
+      const h = appData.habits.find(x => x.id === l.habit_id);
+      return h ? h.name : 'Habito eliminado';
+    });
+  }
+  openModal('dayDetail', { dateStr, habitNames });
 }
 
 // bloque reutilizable para mostrar un estado vacio amigable en cualquier lista
@@ -1290,14 +1330,70 @@ function loadNotes() {
   document.getElementById('quickNotes').value = appData.notes || '';
 }
 
+// ---------- rango de fechas para la seccion de finanzas ----------
+let financeRange = 'month'; // 'month' | 'quarter' | 'year' | 'all' | 'custom'
+let customRangeStartDate = null;
+let customRangeEndDate = null;
+
+function setFinanceRange(range) {
+  financeRange = range;
+  document.querySelectorAll('.range-pill').forEach(p => p.classList.toggle('active', p.dataset.range === range));
+  document.getElementById('customRangeInputs').style.display = range === 'custom' ? 'flex' : 'none';
+  renderTransactions();
+  renderExpenseChart();
+}
+
+function applyCustomRange() {
+  const startVal = document.getElementById('customRangeStart').value;
+  const endVal = document.getElementById('customRangeEnd').value;
+  customRangeStartDate = startVal ? new Date(startVal + 'T00:00:00') : null;
+  customRangeEndDate = endVal ? new Date(endVal + 'T23:59:59') : null;
+  renderTransactions();
+  renderExpenseChart();
+}
+
+// calcula el rango de fechas [start, end] segun la seleccion actual. null,null = sin filtro (todo)
+function getFinanceRangeBounds() {
+  const now = new Date();
+  if (financeRange === 'month') {
+    return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: now };
+  }
+  if (financeRange === 'quarter') {
+    const start = new Date(now);
+    start.setMonth(start.getMonth() - 3);
+    return { start, end: now };
+  }
+  if (financeRange === 'year') {
+    return { start: new Date(now.getFullYear(), 0, 1), end: now };
+  }
+  if (financeRange === 'custom') {
+    return { start: customRangeStartDate, end: customRangeEndDate };
+  }
+  return { start: null, end: null }; // 'all'
+}
+
+// filtra transacciones dentro del rango activo. Transacciones sin fecha (datos muy viejos) siempre se incluyen
+function getTransactionsInRange() {
+  const { start, end } = getFinanceRangeBounds();
+  if (!start && !end) return appData.transactions;
+  return appData.transactions.filter(t => {
+    if (!t.created_at) return true;
+    const d = new Date(t.created_at);
+    if (start && d < start) return false;
+    if (end && d > end) return false;
+    return true;
+  });
+}
+
 function renderTransactions() {
   const list = document.getElementById('transactionsList');
+  const filtered = getTransactionsInRange();
   if (appData.transactions.length === 0) {
     list.innerHTML = emptyState('💰', 'Aún no tienes transacciones. Registra la primera con el botón de abajo.');
-    updateFinanceSummary();
-    return;
-  }
-  list.innerHTML = appData.transactions.slice().reverse().map(t => `
+  } else if (filtered.length === 0) {
+    list.innerHTML = emptyState('🔍', 'No hay transacciones en el rango seleccionado.');
+  } else {
+    list.innerHTML = filtered.slice().reverse().map(t => `
     <div class="transaction-item">
       <div class="tx-icon" style="background: ${t.iconbg};">${t.icon}</div>
       <div class="tx-info">
@@ -1308,16 +1404,68 @@ function renderTransactions() {
       <span class="delete-icon" onclick="deleteTransaction(${t.id})" title="Eliminar">🗑</span>
     </div>
   `).join('');
+  }
   updateFinanceSummary();
+  renderExpenseChart();
 }
 
 function updateFinanceSummary() {
-  const income = appData.transactions.filter(t => t.type === 'income').reduce((a, b) => a + b.amount, 0);
-  const expense = Math.abs(appData.transactions.filter(t => t.type === 'expense').reduce((a, b) => a + b.amount, 0));
+  const filtered = getTransactionsInRange();
+  const income = filtered.filter(t => t.type === 'income').reduce((a, b) => a + b.amount, 0);
+  const expense = Math.abs(filtered.filter(t => t.type === 'expense').reduce((a, b) => a + b.amount, 0));
   const balance = income - expense;
   document.getElementById('totalIncome').textContent = `S/ ${income.toLocaleString()}`;
   document.getElementById('totalExpense').textContent = `S/ ${expense.toLocaleString()}`;
   document.getElementById('totalBalance').textContent = `S/ ${balance.toLocaleString()}`;
+}
+
+// grafico de gastos por categoria, para el rango de fechas activo
+let expenseChartInstance = null;
+function renderExpenseChart() {
+  const canvas = document.getElementById('expenseChart');
+  if (!canvas) return;
+  const filtered = getTransactionsInRange().filter(t => t.type === 'expense');
+  const byCategory = {};
+  filtered.forEach(t => {
+    byCategory[t.category] = (byCategory[t.category] || 0) + Math.abs(t.amount);
+  });
+  const labels = Object.keys(byCategory);
+  const data = Object.values(byCategory);
+  const colors = ['#ef4444', '#f59e0b', '#3b82f6', '#ec4899', '#10b981', '#6366f1', '#8b5cf6', '#14b8a6'];
+
+  if (expenseChartInstance) expenseChartInstance.destroy();
+  if (labels.length === 0) {
+    canvas.style.display = 'none';
+    document.getElementById('expenseChartEmpty').style.display = 'block';
+    document.getElementById('expenseChartEmpty').innerHTML = emptyState('📈', 'No hay gastos en el rango seleccionado para graficar.');
+    return;
+  }
+  canvas.style.display = 'block';
+  document.getElementById('expenseChartEmpty').style.display = 'none';
+
+  expenseChartInstance = new Chart(canvas, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: labels.map((_, i) => colors[i % colors.length]),
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'right', labels: { color: '#8a8a9a', font: { size: 11 }, boxWidth: 12 } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ` ${ctx.label}: S/ ${ctx.parsed.toLocaleString()}`
+          }
+        }
+      }
+    }
+  });
 }
 
 // suma los gastos del mes actual para una categoria, a partir de transacciones reales
@@ -1450,6 +1598,17 @@ function openModal(type, editData) {
         </div>
       </div>
       <div class="modal-actions"><button class="btn btn-primary" style="width:100%;" onclick="closeModal()">Empezar</button></div>`;
+  } else if (type === 'dayDetail') {
+    const d = new Date(editData.dateStr + 'T00:00:00');
+    const dayLabel = d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+    const names = editData.habitNames;
+    html = `<div class="modal-title" style="text-transform:capitalize;">${dayLabel}</div>
+      ${names.length === 0
+        ? `<div style="text-align:center; padding: 20px 0; color: var(--text-muted); font-size:13px;">No completaste ningun habito este dia.</div>`
+        : `<div style="display:flex; flex-direction:column; gap:8px; margin: 12px 0;">
+            ${names.map(n => `<div style="display:flex; align-items:center; gap:10px; background:var(--bg); padding:10px 14px; border-radius:12px; font-size:14px;"><span style="color:var(--accent-habits);">✓</span> ${n}</div>`).join('')}
+          </div>`}
+      <div class="modal-actions"><button class="btn btn-secondary" style="width:100%;" onclick="closeModal()">Cerrar</button></div>`;
   }
   content.innerHTML = html;
   modal.classList.add('active');
