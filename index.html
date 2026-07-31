@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LifeOS - Tu Sistema de Crecimiento</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+:root {
+  --bg: #0a0a0f;
+  --surface: #12121a;
+  --surface-light: #1e1e2a;
+  --border: #2a2a3a;
+  --text: #f0f0f5;
+  --text-muted: #8a8a9a;
+  --text-dim: #5a5a6a;
+  --accent-habits: #10b981;
+  --accent-exercise: #f59e0b;
+  --accent-study: #3b82f6;
+  --accent-finance: #ec4899;
+  --accent-primary: #6366f1;
+  --danger: #ef4444;
+  --success: #22c55e;
+  --radius: 16px;
+  --radius-sm: 10px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+  --shadow-lg: 0 8px 40px rgba(0,0,0,0.5);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
+.lifeos-container { max-width: 1200px; margin: 0 auto; padding: 0; }
+.lifeos-header { padding: 20px 24px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: rgba(10,10,15,0.95); backdrop-filter: blur(20px); z-index: 100; }
+.lifeos-logo { font-size: 22px; font-weight: 700; background: linear-gradient(135deg, var(--accent-primary), #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.lifeos-date { font-size: 13px; color: var(--text-muted); font-weight: 500; }
+.lifeos-score { display: flex; align-items: center; gap: 8px; background: var(--surface); padding: 8px 16px; border-radius: 50px; font-size: 14px; font-weight: 600; }
+.lifeos-score-ring { width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--accent-primary); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; }
+.auth-container { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.auth-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 40px; width: 100%; max-width: 400px; text-align: center; }
+.auth-card .lifeos-logo { font-size: 32px; margin-bottom: 8px; }
+.auth-subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 28px; }
+.auth-input { width: 100%; padding: 14px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-size: 15px; font-family: inherit; margin-bottom: 12px; transition: all 0.3s ease; }
+.auth-input:focus { outline: none; border-color: var(--accent-primary); box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+.auth-btn { width: 100%; padding: 14px; background: var(--accent-primary); color: white; border: none; border-radius: var(--radius-sm); font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; margin-top: 8px; }
+.auth-btn:hover { background: #5558e0; transform: translateY(-1px); }
+.auth-switch { margin-top: 20px; font-size: 13px; color: var(--text-muted); }
+.auth-switch a { color: var(--accent-primary); cursor: pointer; font-weight: 500; }
+.auth-error { color: var(--danger); font-size: 13px; margin-top: 8px; min-height: 18px; }
+.user-info { display: flex; align-items: center; gap: 10px; }
+.user-avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-primary), #a855f7); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; }
+.logout-btn { background: transparent; border: 1px solid var(--border); color: var(--text-muted); padding: 6px 14px; border-radius: 50px; font-size: 12px; cursor: pointer; transition: all 0.3s ease; }
+.logout-btn:hover { color: var(--danger); border-color: var(--danger); }
+.lifeos-nav { display: flex; gap: 8px; padding: 16px 24px; overflow-x: auto; scrollbar-width: none; }
+.lifeos-nav::-webkit-scrollbar { display: none; }
+.nav-pill { padding: 10px 20px; border-radius: 50px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap; transition: all 0.3s ease; display: flex; align-items: center; gap: 6px; }
+.nav-pill:hover { background: var(--surface-light); color: var(--text); }
+.nav-pill.active { background: var(--accent-primary); color: white; border-color: var(--accent-primary); box-shadow: 0 4px 16px rgba(99,102,241,0.3); }
+.nav-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.5; }
+.nav-pill.active .dot { opacity: 1; }
+.lifeos-section { display: none; padding: 0 24px 40px; animation: fadeIn 0.4s ease; }
+.lifeos-section.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; transition: all 0.3s ease; }
+.card:hover { border-color: var(--surface-light); transform: translateY(-2px); box-shadow: var(--shadow); }
+.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.card-title { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+.card-icon { width: 36px; height: 36px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 18px; }
+.habit-item { display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: var(--bg); border-radius: var(--radius-sm); margin-bottom: 8px; border: 1px solid transparent; transition: all 0.3s ease; cursor: pointer; }
+.habit-item:hover { border-color: var(--border); }
+.habit-check { width: 24px; height: 24px; border-radius: 8px; border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; transition: all 0.3s ease; flex-shrink: 0; }
+.habit-check.checked { background: var(--accent-habits); border-color: var(--accent-habits); color: white; }
+.habit-info { flex: 1; }
+.habit-name { font-size: 14px; font-weight: 500; }
+.habit-streak { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; margin-top: 2px; }
+.habit-tag { font-size: 11px; padding: 3px 10px; border-radius: 50px; font-weight: 500; }
+.tag-salud { background: rgba(16,185,129,0.15); color: var(--accent-habits); }
+.tag-aprendizaje { background: rgba(59,130,246,0.15); color: var(--accent-study); }
+.tag-productividad { background: rgba(245,158,11,0.15); color: var(--accent-exercise); }
+.tag-bienestar { background: rgba(236,72,153,0.15); color: var(--accent-finance); }
+.add-btn { width: 100%; padding: 14px; border: 2px dashed var(--border); border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.add-btn:hover { border-color: var(--accent-primary); color: var(--accent-primary); background: rgba(99,102,241,0.05); }
+.calendar-strip { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0; scrollbar-width: none; }
+.calendar-strip::-webkit-scrollbar { display: none; }
+.day-pill { min-width: 52px; padding: 10px 8px; border-radius: var(--radius-sm); background: var(--bg); border: 1px solid var(--border); text-align: center; cursor: pointer; transition: all 0.3s ease; }
+.day-pill:hover { background: var(--surface-light); }
+.day-pill.today { border-color: var(--accent-primary); background: rgba(99,102,241,0.1); }
+.day-pill .day-name { font-size: 11px; color: var(--text-muted); text-transform: uppercase; }
+.day-pill .day-num { font-size: 18px; font-weight: 700; margin-top: 2px; }
+.day-pill .day-dots { display: flex; gap: 3px; justify-content: center; margin-top: 6px; }
+.day-dot { width: 5px; height: 5px; border-radius: 50%; }
+.workout-card { background: linear-gradient(135deg, var(--surface), var(--bg)); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 12px; cursor: pointer; transition: all 0.3s ease; }
+.workout-card:hover { border-color: var(--accent-exercise); box-shadow: 0 4px 20px rgba(245,158,11,0.15); }
+.workout-header { display: flex; justify-content: space-between; align-items: flex-start; }
+.workout-name { font-size: 16px; font-weight: 600; }
+.workout-meta { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+.workout-duration { background: rgba(245,158,11,0.15); color: var(--accent-exercise); padding: 4px 12px; border-radius: 50px; font-size: 12px; font-weight: 600; }
+.exercise-list { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+.exercise-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; font-size: 13px; }
+.exercise-item span { color: var(--text-muted); }
+.timer-display { font-size: 56px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; letter-spacing: -2px; margin: 24px 0; }
+.timer-controls { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.timer-btn { padding: 12px 28px; border-radius: 50px; border: none; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; }
+.timer-btn.start { background: var(--accent-exercise); color: white; box-shadow: 0 4px 16px rgba(245,158,11,0.3); }
+.timer-btn.start:hover { transform: scale(1.05); }
+.timer-btn.pause { background: var(--surface-light); color: var(--text); border: 1px solid var(--border); }
+.timer-btn.reset { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+.pomodoro-container { text-align: center; padding: 30px 20px; }
+.pomodoro-modes { display: flex; gap: 8px; justify-content: center; margin-bottom: 24px; flex-wrap: wrap; }
+.pomodoro-mode { padding: 8px 20px; border-radius: 50px; border: 1px solid var(--border); background: var(--bg); color: var(--text-muted); font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.3s ease; }
+.pomodoro-mode:hover { color: var(--text); }
+.pomodoro-mode.active { background: var(--accent-study); color: white; border-color: var(--accent-study); }
+.pomo-timer { font-size: 72px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -3px; margin: 20px 0; background: linear-gradient(135deg, var(--accent-study), #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.pomo-progress { width: 200px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 24px; overflow: hidden; }
+.pomo-progress-bar { height: 100%; background: linear-gradient(90deg, var(--accent-study), #8b5cf6); border-radius: 2px; transition: width 1s linear; }
+.subject-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+.subject-card { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px; text-align: center; cursor: pointer; transition: all 0.3s ease; }
+.subject-card:hover { border-color: var(--accent-study); }
+.subject-emoji { font-size: 28px; margin-bottom: 8px; }
+.subject-name { font-size: 13px; font-weight: 500; }
+.subject-hours { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+.finance-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+.finance-box { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px 12px; text-align: center; }
+.finance-box .label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.finance-box .amount { font-size: 20px; font-weight: 700; margin-top: 6px; }
+.finance-box.income .amount { color: var(--success); }
+.finance-box.expense .amount { color: var(--danger); }
+.finance-box.balance .amount { color: var(--accent-primary); }
+.transaction-item { display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: var(--bg); border-radius: var(--radius-sm); margin-bottom: 8px; border: 1px solid transparent; transition: all 0.3s ease; }
+.transaction-item:hover { border-color: var(--border); }
+.tx-icon { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+.tx-info { flex: 1; }
+.tx-name { font-size: 14px; font-weight: 500; }
+.tx-category { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.tx-amount { font-size: 15px; font-weight: 600; }
+.tx-amount.positive { color: var(--success); }
+.tx-amount.negative { color: var(--danger); }
+.budget-bar { margin-bottom: 16px; }
+.budget-header { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 8px; }
+.budget-track { height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; }
+.budget-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+.dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.dash-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; transition: all 0.3s ease; }
+.dash-card:hover { box-shadow: var(--shadow); }
+.dash-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.dash-card-icon { width: 44px; height: 44px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+.dash-card-stat { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
+.dash-card-label { font-size: 13px; color: var(--text-muted); }
+.dash-card-trend { font-size: 12px; font-weight: 500; margin-top: 8px; display: flex; align-items: center; gap: 4px; }
+.trend-up { color: var(--success); }
+.trend-down { color: var(--danger); }
+.mini-list { margin-top: 12px; }
+.mini-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.mini-item:last-child { border-bottom: none; }
+.mini-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.mini-text { flex: 1; }
+.mini-value { font-weight: 600; }
+.chart-container { position: relative; height: 250px; margin-top: 16px; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; z-index: 200; padding: 20px; }
+.modal-overlay.active { display: flex; }
+.modal-content { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; width: 100%; max-width: 400px; animation: modalIn 0.3s ease; }
+@keyframes modalIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+.modal-title { font-size: 18px; font-weight: 600; margin-bottom: 20px; }
+.form-group { margin-bottom: 16px; }
+.form-label { font-size: 13px; color: var(--text-muted); margin-bottom: 6px; display: block; }
+.form-input { width: 100%; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-size: 14px; font-family: inherit; box-sizing: border-box; transition: all 0.3s ease; }
+.form-input:focus { outline: none; border-color: var(--accent-primary); box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+.form-select { width: 100%; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-size: 14px; font-family: inherit; cursor: pointer; }
+.modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+.btn { flex: 1; padding: 12px; border-radius: var(--radius-sm); border: none; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; }
+.btn-primary { background: var(--accent-primary); color: white; }
+.btn-primary:hover { background: #5558e0; }
+.btn-secondary { background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); }
+.btn-secondary:hover { color: var(--text); }
+.sync-status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); padding: 4px 12px; border-radius: 50px; background: var(--bg); border: 1px solid var(--border); }
+.sync-status.online { color: var(--success); }
+.sync-status.offline { color: var(--danger); }
+.sync-dot { width: 6px; height: 6px; border-radius: 50%; }
+.sync-dot.online { background: var(--success); }
+.sync-dot.offline { background: var(--danger); }
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(100px); background: var(--surface-light); color: var(--text); padding: 12px 24px; border-radius: 50px; font-size: 14px; font-weight: 500; border: 1px solid var(--border); box-shadow: var(--shadow-lg); z-index: 300; opacity: 0; transition: all 0.4s ease; pointer-events: none; }
+.toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+.loading-overlay { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 400; flex-direction: column; gap: 16px; }
+.loading-spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--accent-primary); border-radius: 50%; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { color: var(--text-muted); font-size: 14px; }
+@media (max-width: 640px) {
+  .lifeos-header { padding: 16px 16px 10px; }
+  .lifeos-nav { padding: 12px 16px; }
+  .lifeos-section { padding: 0 16px 30px; }
+  .finance-summary { grid-template-columns: 1fr; }
+  .dash-grid { grid-template-columns: 1fr; }
+  .pomo-timer { font-size: 52px; }
+  .timer-display { font-size: 42px; }
+  .subject-grid { grid-template-columns: repeat(2, 1fr); }
+  .auth-card { padding: 28px 20px; }
+}
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+</style>
+</head>
+<body>
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">Cargando LifeOS...</div>
+</div>
+
+<div class="auth-container" id="authContainer" style="display:none;">
+  <div class="auth-card">
+    <div class="lifeos-logo">LifeOS</div>
+    <div class="auth-subtitle" id="authSubtitle">Inicia sesion para continuar</div>
+    <input type="email" class="auth-input" id="authEmail" placeholder="Email">
+    <input type="password" class="auth-input" id="authPassword" placeholder="Contrasena">
+    <div class="auth-error" id="authError"></div>
+    <button class="auth-btn" id="authBtn" onclick="handleAuth()">Iniciar sesion</button>
+    <div class="auth-switch">
+      <span id="authSwitchText">No tienes cuenta?</span>
+      <a onclick="toggleAuthMode()" id="authSwitchLink">Registrate</a>
+    </div>
+  </div>
+</div>
+
+<div class="lifeos-container" id="appContainer" style="display:none;">
+  <div class="lifeos-header">
+    <div>
+      <div class="lifeos-logo">LifeOS</div>
+      <div class="lifeos-date" id="currentDate">--</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div class="sync-status" id="syncStatus">
+        <div class="sync-dot" id="syncDot"></div>
+        <span id="syncText">Sincronizando...</span>
+      </div>
+      <div class="user-info">
+        <div class="user-avatar" id="userAvatar">U</div>
+        <button class="logout-btn" onclick="logout()">Salir</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="lifeos-nav">
+    <button class="nav-pill active" data-section="dashboard" onclick="showSection('dashboard')">
+      <span class="dot"></span> Dashboard
+    </button>
+    <button class="nav-pill" data-section="habits" onclick="showSection('habits')">
+      <span class="dot"></span> Habitos
+    </button>
+    <button class="nav-pill" data-section="exercise" onclick="showSection('exercise')">
+      <span class="dot"></span> Ejercicio
+    </button>
+    <button class="nav-pill" data-section="study" onclick="showSection('study')">
+      <span class="dot"></span> Estudios
+    </button>
+    <button class="nav-pill" data-section="finance" onclick="showSection('finance')">
+      <span class="dot"></span> Finanzas
+    </button>
+  </div>
+
+  <div class="lifeos-section active" id="dashboard">
+    <div class="dash-grid">
+      <div class="dash-card">
+        <div class="dash-card-header">
+          <div class="dash-card-icon" style="background: rgba(16,185,129,0.15);">🌱</div>
+        </div>
+        <div class="dash-card-stat" id="dashHabitsDone">0/0</div>
+        <div class="dash-card-label">Habitos hoy</div>
+        <div class="dash-card-trend trend-up" id="dashHabitsTrend">--</div>
+      </div>
+      <div class="dash-card">
+        <div class="dash-card-header">
+          <div class="dash-card-icon" style="background: rgba(245,158,11,0.15);">🏋️</div>
+        </div>
+        <div class="dash-card-stat" id="dashWorkouts">0</div>
+        <div class="dash-card-label">Entrenamientos</div>
+        <div class="dash-card-trend trend-up" id="dashWorkoutsTrend">--</div>
+      </div>
+      <div class="dash-card">
+        <div class="dash-card-header">
+          <div class="dash-card-icon" style="background: rgba(59,130,246,0.15);">📚</div>
+        </div>
+        <div class="dash-card-stat" id="dashStudyHours">0h</div>
+        <div class="dash-card-label">Horas estudio</div>
+        <div class="dash-card-trend trend-up">Meta: 4h/dia</div>
+      </div>
+      <div class="dash-card">
+        <div class="dash-card-header">
+          <div class="dash-card-icon" style="background: rgba(236,72,153,0.15);">💰</div>
+        </div>
+        <div class="dash-card-stat" id="dashBalance">$0</div>
+        <div class="dash-card-label">Balance</div>
+        <div class="dash-card-trend" id="dashBalanceTrend">--</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top: 16px;">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon" style="background: rgba(99,102,241,0.15); color: var(--accent-primary);">📈</div>
+          Progreso semanal
+        </div>
+      </div>
+      <div class="chart-container">
+        <canvas id="progressChart"></canvas>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top: 16px;">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon" style="background: rgba(99,102,241,0.15); color: var(--accent-primary);">📅</div>
+          Calendario
+        </div>
+      </div>
+      <div class="calendar-strip" id="calendarStrip"></div>
+    </div>
+
+    <div class="card" style="margin-top: 16px;">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon" style="background: rgba(99,102,241,0.15); color: var(--accent-primary);">🎯</div>
+          Proximos pasos
+        </div>
+      </div>
+      <div class="mini-list" id="nextSteps"></div>
+    </div>
+  </div>
+
+  <div class="lifeos-section" id="habits">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon" style="background: rgba(16,185,129,0.15); color: var(--accent-habits);">✅</div>
+          Mis habitos
+        </div>
+        <span style="font-size: 13px; color: var(--text-muted);" id="habitsProgress">0/0</span>
+      </div>
+      <div id="habitsList"></div>
+      <button class="add-btn" onclick="openModal('habit')">+ Agregar habito</button>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon" style="background: rgba(16,185,129,0.15); color: var(--accent-habits);">🔥</div>
+          Tus rachas
+        </div>
+      </div>
+      <div id="streaksList"></div>
+    </div>
+  </div>
+
+  <div class="lifeos-section" id="exercise">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon" style="background: rgba(245,158,11,0.15); color: var(--accent-exercise);">⏱️</div>
+          Temporizador de series
+        </div>
+      </div>
+      <div class="timer-display" id="restTimer">00:45</div>
+      <div class="timer-controls">
+        <button class="timer-btn start" id="timerStartBtn" onclick="toggleTimer()">Iniciar</button>
+        <button class="timer-btn pause" onclick="resetTimer()">Reiniciar</button>
+        <button class="timer-btn reset" onclick="setTimer(60)">1m</button>
+        <button class="timer-btn reset" onclick="setTimer(90)">1:30</button>
+        <button class="timer-btn reset" onclick="setTimer(120)">2m</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon" style="background: rgba(245,158,11,0.15); color: var(--accent-exercise);">💪</div>
+          Mis rutinas
+        </div>
+      </div>
+      <div id="workoutsList"></div>
+      <button class="add-btn" onclick="openModal('workout')">+ Nueva rutina</button>
+    </div>
+  </div>
+
+  <div class="lifeos-section" id="study">
+    <div class="card">
+      <div class="pomodoro-container">
+        <div class="pomodoro-modes">
+          <button class="pomodoro-mode active" onclick="setPomodoro(25, this)">Pomodoro</button>
+          <button class="pomodoro-mode" onclick="setPomodoro(5, this)">Descanso corto</button>
+          <button class="pomodoro-mode" onclick="setPomodoro(15, this)">Descanso largo</button>
+        </div>
+        <div class="pomo-timer" id="pomoTimer">25:00</div>
+        <div class="pomo-progress">
+          <div class="pomo-progress-bar" id="pomoProgress" style="width: 0%"></div>
+        </div>
+        <div class="timer-controls">
+          <button class="timer-btn start" id="pomoStartBtn" onclick="togglePomodoro()">Iniciar</button>
+          <button class="timer-btn pause" onclick="resetPomodoro()">Reiniciar</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon" style="background: rgba(59,130,246,0.15); color: var(--accent-study);">📖</div>
+          Mis materias
+        </div>
+      </div>
+      <div class="subject-grid" id="subjectsGrid"></div>
+      <button class="add-btn" style="margin-top: 12px;" onclick="openModal('subject')">+ Agregar materia</button>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon" style="background: rgba(59,130,246,0.15); color: var(--accent-study);">📝</div>
+          Notas rapidas
+        </div>
+      </div>
+      <textarea class="form-input" id="quickNotes" rows="4" placeholder="Escribe tus notas aqui..." style="resize: vertical;" oninput="saveNotes()"></textarea>
+    </div>
+  </div>
+
+  <div class="lifeos-section" id="finance">
+    <div class="finance-summary">
+      <div class="finance-box income">
+        <div class="label">Ingresos</div>
+        <div class="amount" id="totalIncome">$0</div>
+      </div>
+      <div class="finance-box expense">
+        <div class="label">Gastos</div>
+        <div class="amount" id="totalExpense">$0</div>
+      </div>
+      <div class="finance-box balance">
+        <div class="label">Balance</div>
+        <div class="amount" id="totalBalance">$0</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon" style="background: rgba(236,72,153,0.15); color: var(--accent-finance);">💳</div>
+          Transacciones
+        </div>
+        <button class="btn btn-primary" style="padding: 8px 16px; font-size: 13px;" onclick="openModal('transaction')">+ Agregar</button>
+      </div>
+      <div id="transactionsList"></div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon" style="background: rgba(236,72,153,0.15); color: var(--accent-finance);">📊</div>
+          Presupuesto
+        </div>
+      </div>
+      <div id="budgetList"></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal">
+    <div class="modal-content" id="modalContent"></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://nbnnpxqytyfkikxybljk.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_rxbWeCK4PIGIs5XDx1HFgA_e9x56kMk';
+
+let supabase = null;
+let currentUser = null;
+let isAuthMode = 'login';
+
+let appData = {
+  habits: [],
+  workouts: [],
+  subjects: [],
+  transactions: [],
+  budgets: [],
+  notes: '',
+  pomodoro_sessions: []
+};
+
+let isOnline = navigator.onLine;
+
+async function init() {
+  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session) {
+    currentUser = session.user;
+    showApp();
+    await loadData();
+  } else {
+    showAuth();
+  }
+  window.addEventListener('online', () => { isOnline = true; updateSyncStatus(); syncData(); });
+  window.addEventListener('offline', () => { isOnline = false; updateSyncStatus(); });
+  document.getElementById('loadingOverlay').style.display = 'none';
+}
+
+function showAuth() {
+  document.getElementById('authContainer').style.display = 'flex';
+  document.getElementById('appContainer').style.display = 'none';
+}
+
+function showApp() {
+  document.getElementById('authContainer').style.display = 'none';
+  document.getElementById('appContainer').style.display = 'block';
+  document.getElementById('userAvatar').textContent = currentUser.email[0].toUpperCase();
+  updateDate();
+  renderAll();
+}
+
+function toggleAuthMode() {
+  isAuthMode = isAuthMode === 'login' ? 'register' : 'login';
+  document.getElementById('authBtn').textContent = isAuthMode === 'login' ? 'Iniciar sesion' : 'Crear cuenta';
+  document.getElementById('authSubtitle').textContent = isAuthMode === 'login' ? 'Inicia sesion para continuar' : 'Crea tu cuenta en LifeOS';
+  document.getElementById('authSwitchText').textContent = isAuthMode === 'login' ? 'No tienes cuenta?' : 'Ya tienes cuenta?';
+  document.getElementById('authSwitchLink').textContent = isAuthMode === 'login' ? 'Registrate' : 'Inicia sesion';
+  document.getElementById('authError').textContent = '';
+}
+
+async function handleAuth() {
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  const errorEl = document.getElementById('authError');
+  if (!email || !password) { errorEl.textContent = 'Completa todos los campos'; return; }
+  document.getElementById('authBtn').textContent = 'Cargando...';
+  try {
+    let result;
+    if (isAuthMode === 'login') {
+      result = await supabase.auth.signInWithPassword({ email, password });
+    } else {
+      result = await supabase.auth.signUp({ email, password });
+    }
+    if (result.error) {
+      errorEl.textContent = result.error.message;
+    } else {
+      currentUser = result.data.user;
+      showApp();
+      await loadData();
+      showToast(isAuthMode === 'login' ? 'Bienvenido de vuelta!' : 'Cuenta creada!');
+    }
+  } catch (e) {
+    errorEl.textContent = 'Error de conexion';
+  }
+  document.getElementById('authBtn').textContent = isAuthMode === 'login' ? 'Iniciar sesion' : 'Crear cuenta';
+}
+
+async function logout() {
+  await supabase.auth.signOut();
+  currentUser = null;
+  appData = { habits: [], workouts: [], subjects: [], transactions: [], budgets: [], notes: '', pomodoro_sessions: [] };
+  showAuth();
+}
+
+async function loadData() {
+  if (!currentUser) return;
+  if (isOnline) {
+    try {
+      const { data: habits } = await supabase.from('habits').select('*').eq('user_id', currentUser.id);
+      const { data: workouts } = await supabase.from('workouts').select('*').eq('user_id', currentUser.id);
+      const { data: subjects } = await supabase.from('subjects').select('*').eq('user_id', currentUser.id);
+      const { data: transactions } = await supabase.from('transactions').select('*').eq('user_id', currentUser.id);
+      const { data: budgets } = await supabase.from('budgets').select('*').eq('user_id', currentUser.id);
+      const { data: notes } = await supabase.from('notes').select('*').eq('user_id', currentUser.id).single();
+      if (habits && habits.length) appData.habits = habits;
+      if (workouts && workouts.length) appData.workouts = workouts;
+      if (subjects && subjects.length) appData.subjects = subjects;
+      if (transactions && transactions.length) appData.transactions = transactions;
+      if (budgets && budgets.length) appData.budgets = budgets;
+      if (notes) appData.notes = notes.content || '';
+      localStorage.setItem('lifeos_data_' + currentUser.id, JSON.stringify(appData));
+      updateSyncStatus(true);
+    } catch (e) {
+      loadFromLocal();
+    }
+  } else {
+    loadFromLocal();
+  }
+  renderAll();
+}
+
+function loadFromLocal() {
+  const saved = localStorage.getItem('lifeos_data_' + (currentUser?.id || 'guest'));
+  if (saved) {
+    appData = JSON.parse(saved);
+  } else {
+    appData = {
+      habits: [
+        { id: 1, name: 'Meditar 10 min', category: 'bienestar', streak: 5, done: false, user_id: currentUser?.id },
+        { id: 2, name: 'Leer 20 paginas', category: 'aprendizaje', streak: 12, done: false, user_id: currentUser?.id },
+        { id: 3, name: 'Tomar 2L de agua', category: 'salud', streak: 3, done: false, user_id: currentUser?.id },
+        { id: 4, name: 'Dormir 8 horas', category: 'salud', streak: 7, done: false, user_id: currentUser?.id },
+        { id: 5, name: 'Planificar manana', category: 'productividad', streak: 2, done: false, user_id: currentUser?.id }
+      ],
+      workouts: [
+        { id: 1, name: 'Push Day', duration: '45 min', exercises: [
+          { name: 'Press de banca', sets: '4x8', weight: '60kg' },
+          { name: 'Press militar', sets: '3x10', weight: '40kg' },
+          { name: 'Fondos', sets: '3x12', weight: 'Peso corporal' }
+        ], completed: false, user_id: currentUser?.id },
+        { id: 2, name: 'Pull Day', duration: '50 min', exercises: [
+          { name: 'Dominadas', sets: '4x8', weight: 'Peso corporal' },
+          { name: 'Remo con barra', sets: '4x10', weight: '50kg' },
+          { name: 'Curl de biceps', sets: '3x12', weight: '15kg' }
+        ], completed: false, user_id: currentUser?.id },
+        { id: 3, name: 'Leg Day', duration: '55 min', exercises: [
+          { name: 'Sentadilla', sets: '4x8', weight: '80kg' },
+          { name: 'Prensa', sets: '3x12', weight: '120kg' },
+          { name: 'Peso muerto', sets: '3x8', weight: '100kg' }
+        ], completed: false, user_id: currentUser?.id }
+      ],
+      subjects: [
+        { id: 1, name: 'Programacion', emoji: '💻', hours: 12, user_id: currentUser?.id },
+        { id: 2, name: 'Ingles', emoji: '🇬🇧', hours: 8, user_id: currentUser?.id },
+        { id: 3, name: 'Matematicas', emoji: '📐', hours: 6, user_id: currentUser?.id },
+        { id: 4, name: 'Diseno', emoji: '🎨', hours: 4, user_id: currentUser?.id }
+      ],
+      transactions: [
+        { id: 1, name: 'Salario', category: 'Ingreso', amount: 2500, type: 'income', icon: '💼', iconBg: 'rgba(34,197,94,0.15)', user_id: currentUser?.id },
+        { id: 2, name: 'Alquiler', category: 'Vivienda', amount: -800, type: 'expense', icon: '🏠', iconBg: 'rgba(239,68,68,0.15)', user_id: currentUser?.id },
+        { id: 3, name: 'Supermercado', category: 'Comida', amount: -150, type: 'expense', icon: '🛒', iconBg: 'rgba(239,68,68,0.15)', user_id: currentUser?.id },
+        { id: 4, name: 'Netflix', category: 'Entretenimiento', amount: -15, type: 'expense', icon: '🎬', iconBg: 'rgba(239,68,68,0.15)', user_id: currentUser?.id },
+        { id: 5, name: 'Freelance', category: 'Ingreso extra', amount: 400, type: 'income', icon: '💻', iconBg: 'rgba(34,197,94,0.15)', user_id: currentUser?.id }
+      ],
+      budgets: [
+        { category: 'Vivienda', spent: 800, limit: 800, color: '#ef4444', user_id: currentUser?.id },
+        { category: 'Comida', spent: 350, limit: 500, color: '#f59e0b', user_id: currentUser?.id },
+        { category: 'Transporte', spent: 120, limit: 200, color: '#3b82f6', user_id: currentUser?.id },
+        { category: 'Entretenimiento', spent: 80, limit: 150, color: '#ec4899', user_id: currentUser?.id },
+        { category: 'Ahorro', spent: 300, limit: 500, color: '#10b981', user_id: currentUser?.id }
+      ],
+      notes: '',
+      pomodoro_sessions: []
+    };
+  }
+}
+
+async function saveData() {
+  if (!currentUser) return;
+  localStorage.setItem('lifeos_data_' + currentUser.id, JSON.stringify(appData));
+  if (isOnline) {
+    try {
+      for (const habit of appData.habits) {
+        await supabase.from('habits').upsert({ ...habit, user_id: currentUser.id });
+      }
+      for (const workout of appData.workouts) {
+        await supabase.from('workouts').upsert({ ...workout, user_id: currentUser.id });
+      }
+      for (const subject of appData.subjects) {
+        await supabase.from('subjects').upsert({ ...subject, user_id: currentUser.id });
+      }
+      for (const tx of appData.transactions) {
+        await supabase.from('transactions').upsert({ ...tx, user_id: currentUser.id });
+      }
+      for (const budget of appData.budgets) {
+        await supabase.from('budgets').upsert({ ...budget, user_id: currentUser.id });
+      }
+      await supabase.from('notes').upsert({ user_id: currentUser.id, content: appData.notes });
+      updateSyncStatus(true);
+    } catch (e) {
+      updateSyncStatus(false);
+    }
+  } else {
+    updateSyncStatus(false);
+  }
+}
+
+function updateSyncStatus(online) {
+  const dot = document.getElementById('syncDot');
+  const text = document.getElementById('syncText');
+  const status = document.getElementById('syncStatus');
+  if (online === undefined) online = isOnline;
+  if (online) {
+    dot.className = 'sync-dot online';
+    text.textContent = 'Sincronizado';
+    status.className = 'sync-status online';
+  } else {
+    dot.className = 'sync-dot offline';
+    text.textContent = 'Modo offline';
+    status.className = 'sync-status offline';
+  }
+}
+
+async function syncData() {
+  if (!isOnline || !currentUser) return;
+  await saveData();
+  showToast('Datos sincronizados');
+}
+
+function renderAll() {
+  renderCalendar();
+  renderHabits();
+  renderWorkouts();
+  renderSubjects();
+  renderTransactions();
+  renderBudgets();
+  renderDashboard();
+  renderNextSteps();
+  loadNotes();
+  renderChart();
+}
+
+function updateDate() {
+  const d = new Date();
+  const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+  document.getElementById('currentDate').textContent = d.toLocaleDateString('es-ES', options);
+}
+
+function showSection(section) {
+  document.querySelectorAll('.lifeos-section').forEach(s => s.classList.remove('active'));
+  document.getElementById(section).classList.add('active');
+  document.querySelectorAll('.nav-pill').forEach(p => p.classList.remove('active'));
+  document.querySelector(`.nav-pill[data-section="${section}"]`).classList.add('active');
+  if (section === 'dashboard') renderChart();
+}
+
+function renderDashboard() {
+  const done = appData.habits.filter(h => h.done).length;
+  const total = appData.habits.length;
+  document.getElementById('dashHabitsDone').textContent = `${done}/${total}`;
+  document.getElementById('dashHabitsTrend').textContent = done === total ? 'Dia perfecto!' : `${total - done} pendientes`;
+  const completedWorkouts = appData.workouts.filter(w => w.completed).length;
+  document.getElementById('dashWorkouts').textContent = completedWorkouts;
+  document.getElementById('dashWorkoutsTrend').textContent = completedWorkouts > 0 ? 'Sigue asi!' : 'Hoy toca entrenar';
+  const income = appData.transactions.filter(t => t.type === 'income').reduce((a, b) => a + b.amount, 0);
+  const expense = Math.abs(appData.transactions.filter(t => t.type === 'expense').reduce((a, b) => a + b.amount, 0));
+  const balance = income - expense;
+  document.getElementById('dashBalance').textContent = `$${balance.toLocaleString()}`;
+  const trendEl = document.getElementById('dashBalanceTrend');
+  if (balance >= 0) {
+    trendEl.className = 'dash-card-trend trend-up';
+    trendEl.innerHTML = 'Balance positivo';
+  } else {
+    trendEl.className = 'dash-card-trend trend-down';
+    trendEl.innerHTML = 'Revisa tus gastos';
+  }
+}
+
+function renderNextSteps() {
+  const steps = [];
+  const undone = appData.habits.filter(h => !h.done);
+  if (undone.length > 0) steps.push({ text: undone[0].name, icon: '🌱', color: '#10b981' });
+  const uncompleted = appData.workouts.filter(w => !w.completed);
+  if (uncompleted.length > 0) steps.push({ text: uncompleted[0].name, icon: '🏋️', color: '#f59e0b' });
+  steps.push({ text: 'Pomodoro de 25 min', icon: '📚', color: '#3b82f6' });
+  const container = document.getElementById('nextSteps');
+  container.innerHTML = steps.map(s => `
+    <div class="mini-item">
+      <div class="mini-dot" style="background: ${s.color};"></div>
+      <span class="mini-text">${s.text}</span>
+    </div>
+  `).join('');
+}
+
+let progressChart = null;
+function renderChart() {
+  const ctx = document.getElementById('progressChart');
+  if (!ctx) return;
+  const labels = [];
+  const data = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    labels.push(d.toLocaleDateString('es-ES', { weekday: 'short' }));
+    data.push(Math.floor(Math.random() * 5) + (i === 0 ? appData.habits.filter(h => h.done).length : Math.floor(Math.random() * 3)));
+  }
+  if (progressChart) progressChart.destroy();
+  progressChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Habitos completados',
+        data: data,
+        borderColor: '#6366f1',
+        backgroundColor: 'rgba(99,102,241,0.1)',
+        borderWidth: 3,
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: '#6366f1',
+        pointRadius: 4,
+        pointHoverRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#8a8a9a', font: { size: 11 } } },
+        y: { grid: { color: '#2a2a3a' }, ticks: { color: '#8a8a9a', font: { size: 11 }, stepSize: 1 } }
+      }
+    }
+  });
+}
+
+function renderCalendar() {
+  const strip = document.getElementById('calendarStrip');
+  const today = new Date();
+  let html = '';
+  for (let i = -3; i <= 3; i++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() + i);
+    const isToday = i === 0;
+    const dayName = d.toLocaleDateString('es-ES', { weekday: 'short' }).slice(0, 3);
+    const dayNum = d.getDate();
+    const doneCount = isToday ? appData.habits.filter(h => h.done).length : Math.floor(Math.random() * 5);
+    const dots = doneCount > 0 ? `<div class="day-dots">${'<div class="day-dot" style="background: var(--accent-habits);"></div>'.repeat(Math.min(doneCount, 3))}</div>` : '<div class="day-dots"></div>';
+    html += `<div class="day-pill ${isToday ? 'today' : ''}"><div class="day-name">${dayName}</div><div class="day-num">${dayNum}</div>${dots}</div>`;
+  }
+  strip.innerHTML = html;
+}
+
+function renderHabits() {
+  const list = document.getElementById('habitsList');
+  const done = appData.habits.filter(h => h.done).length;
+  document.getElementById('habitsProgress').textContent = `${done}/${appData.habits.length}`;
+  list.innerHTML = appData.habits.map(h => `
+    <div class="habit-item" onclick="toggleHabit(${h.id})">
+      <div class="habit-check ${h.done ? 'checked' : ''}">${h.done ? '✓' : ''}</div>
+      <div class="habit-info">
+        <div class="habit-name">${h.name}</div>
+        <div class="habit-streak">🔥 ${h.streak} dias de racha</div>
+      </div>
+      <span class="habit-tag tag-${h.category}">${h.category}</span>
+    </div>
+  `).join('');
+  const streaks = document.getElementById('streaksList');
+  const sorted = [...appData.habits].sort((a, b) => b.streak - a.streak);
+  streaks.innerHTML = sorted.slice(0, 3).map(h => `
+    <div class="habit-item" style="cursor: default;">
+      <div class="habit-info">
+        <div class="habit-name">${h.name}</div>
+        <div class="habit-streak">🔥 ${h.streak} dias</div>
+      </div>
+      <span class="habit-tag tag-${h.category}">${h.category}</span>
+    </div>
+  `).join('');
+}
+
+async function toggleHabit(id) {
+  const h = appData.habits.find(x => x.id === id);
+  if (h) {
+    h.done = !h.done;
+    if (h.done) h.streak++;
+    else h.streak = Math.max(0, h.streak - 1);
+    await saveData();
+    renderHabits();
+    renderDashboard();
+    renderNextSteps();
+    renderCalendar();
+    showToast(h.done ? `${h.name} completado!` : 'Habito desmarcado');
+  }
+}
+
+function renderWorkouts() {
+  const list = document.getElementById('workoutsList');
+  list.innerHTML = appData.workouts.map(w => `
+    <div class="workout-card" onclick="toggleWorkout(${w.id})">
+      <div class="workout-header">
+        <div>
+          <div class="workout-name">${w.name} ${w.completed ? '✅' : ''}</div>
+          <div class="workout-meta">${w.exercises.length} ejercicios · ${w.duration}</div>
+        </div>
+        <span class="workout-duration">${w.duration}</span>
+      </div>
+      <div class="exercise-list">
+        ${w.exercises.map(e => `<div class="exercise-item"><span>${e.name}</span><span>${e.sets} · ${e.weight}</span></div>`).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+async function toggleWorkout(id) {
+  const w = appData.workouts.find(x => x.id === id);
+  if (w) {
+    w.completed = !w.completed;
+    await saveData();
+    renderWorkouts();
+    renderDashboard();
+    renderNextSteps();
+    showToast(w.completed ? `${w.name} completado!` : 'Rutina desmarcada');
+  }
+}
+
+let timerInterval = null;
+let timerSeconds = 45;
+let timerRunning = false;
+
+function formatTime(sec) {
+  const m = Math.floor(sec / 60).toString().padStart(2, '0');
+  const s = (sec % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
+}
+
+function setTimer(sec) {
+  timerSeconds = sec;
+  resetTimer();
+}
+
+function toggleTimer() {
+  const btn = document.getElementById('timerStartBtn');
+  if (timerRunning) {
+    clearInterval(timerInterval);
+    timerRunning = false;
+    btn.textContent = 'Reanudar';
+    btn.className = 'timer-btn start';
+  } else {
+    timerRunning = true;
+    btn.textContent = 'Pausar';
+    btn.className = 'timer-btn pause';
+    timerInterval = setInterval(() => {
+      timerSeconds--;
+      document.getElementById('restTimer').textContent = formatTime(timerSeconds);
+      if (timerSeconds <= 0) {
+        clearInterval(timerInterval);
+        timerRunning = false;
+        btn.textContent = 'Iniciar';
+        btn.className = 'timer-btn start';
+        showToast('Descanso terminado!');
+        timerSeconds = 45;
+        document.getElementById('restTimer').textContent = '00:45';
+      }
+    }, 1000);
+  }
+}
+
+function resetTimer() {
+  clearInterval(timerInterval);
+  timerRunning = false;
+  document.getElementById('timerStartBtn').textContent = 'Iniciar';
+  document.getElementById('timerStartBtn').className = 'timer-btn start';
+  document.getElementById('restTimer').textContent = formatTime(timerSeconds);
+}
+
+let pomoInterval = null;
+let pomoSeconds = 25 * 60;
+let pomoRunning = false;
+let pomoTotal = 25 * 60;
+
+function setPomodoro(min, btn) {
+  clearInterval(pomoInterval);
+  pomoRunning = false;
+  pomoSeconds = min * 60;
+  pomoTotal = min * 60;
+  document.getElementById('pomoTimer').textContent = formatTime(pomoSeconds);
+  document.getElementById('pomoProgress').style.width = '0%';
+  document.getElementById('pomoStartBtn').textContent = 'Iniciar';
+  document.getElementById('pomoStartBtn').className = 'timer-btn start';
+  document.querySelectorAll('.pomodoro-mode').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function togglePomodoro() {
+  const btn = document.getElementById('pomoStartBtn');
+  if (pomoRunning) {
+    clearInterval(pomoInterval);
+    pomoRunning = false;
+    btn.textContent = 'Reanudar';
+    btn.className = 'timer-btn start';
+  } else {
+    pomoRunning = true;
+    btn.textContent = 'Pausar';
+    btn.className = 'timer-btn pause';
+    pomoInterval = setInterval(() => {
+      pomoSeconds--;
+      document.getElementById('pomoTimer').textContent = formatTime(pomoSeconds);
+      const pct = ((pomoTotal - pomoSeconds) / pomoTotal) * 100;
+      document.getElementById('pomoProgress').style.width = pct + '%';
+      if (pomoSeconds <= 0) {
+        clearInterval(pomoInterval);
+        pomoRunning = false;
+        btn.textContent = 'Iniciar';
+        btn.className = 'timer-btn start';
+        showToast('Sesion completada!');
+        appData.pomodoro_sessions.push({ date: new Date().toISOString(), duration: pomoTotal / 60 });
+        saveData();
+      }
+    }, 1000);
+  }
+}
+
+function resetPomodoro() {
+  clearInterval(pomoInterval);
+  pomoRunning = false;
+  const activeMode = document.querySelector('.pomodoro-mode.active');
+  const min = activeMode ? (activeMode.textContent.includes('15') ? 15 : (activeMode.textContent.includes('5') ? 5 : 25)) : 25;
+  pomoSeconds = min * 60;
+  pomoTotal = min * 60;
+  document.getElementById('pomoTimer').textContent = formatTime(pomoSeconds);
+  document.getElementById('pomoProgress').style.width = '0%';
+  document.getElementById('pomoStartBtn').textContent = 'Iniciar';
+  document.getElementById('pomoStartBtn').className = 'timer-btn start';
+}
+
+function renderSubjects() {
+  const grid = document.getElementById('subjectsGrid');
+  grid.innerHTML = appData.subjects.map(s => `
+    <div class="subject-card">
+      <div class="subject-emoji">${s.emoji}</div>
+      <div class="subject-name">${s.name}</div>
+      <div class="subject-hours">${s.hours}h esta semana</div>
+    </div>
+  `).join('');
+}
+
+function saveNotes() {
+  appData.notes = document.getElementById('quickNotes').value;
+  saveData();
+}
+
+function loadNotes() {
+  document.getElementById('quickNotes').value = appData.notes || '';
+}
+
+function renderTransactions() {
+  const list = document.getElementById('transactionsList');
+  list.innerHTML = appData.transactions.slice().reverse().map(t => `
+    <div class="transaction-item">
+      <div class="tx-icon" style="background: ${t.iconBg};">${t.icon}</div>
+      <div class="tx-info">
+        <div class="tx-name">${t.name}</div>
+        <div class="tx-category">${t.category}</div>
+      </div>
+      <div class="tx-amount ${t.type}">${t.type === 'income' ? '+' : ''}$${Math.abs(t.amount).toLocaleString()}</div>
+    </div>
+  `).join('');
+  updateFinanceSummary();
+}
+
+function updateFinanceSummary() {
+  const income = appData.transactions.filter(t => t.type === 'income').reduce((a, b) => a + b.amount, 0);
+  const expense = Math.abs(appData.transactions.filter(t => t.type === 'expense').reduce((a, b) => a + b.amount, 0));
+  const balance = income - expense;
+  document.getElementById('totalIncome').textContent = `$${income.toLocaleString()}`;
+  document.getElementById('totalExpense').textContent = `$${expense.toLocaleString()}`;
+  document.getElementById('totalBalance').textContent = `$${balance.toLocaleString()}`;
+}
+
+function renderBudgets() {
+  const list = document.getElementById('budgetList');
+  list.innerHTML = appData.budgets.map(b => {
+    const pct = Math.min((b.spent / b.limit) * 100, 100);
+    return `
+      <div class="budget-bar">
+        <div class="budget-header">
+          <span>${b.category}</span>
+          <span style="color: var(--text-muted);">$${b.spent} / $${b.limit}</span>
+        </div>
+        <div class="budget-track">
+          <div class="budget-fill" style="width: ${pct}%; background: ${b.color};"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function openModal(type) {
+  const modal = document.getElementById('modal');
+  const content = document.getElementById('modalContent');
+  let html = '';
+  if (type === 'habit') {
+    html = `<div class="modal-title">Nuevo habito</div>
+      <div class="form-group"><label class="form-label">Nombre del habito</label><input type="text" class="form-input" id="newHabitName" placeholder="Ej: Leer 30 min"></div>
+      <div class="form-group"><label class="form-label">Categoria</label><select class="form-select" id="newHabitCategory"><option value="salud">Salud</option><option value="aprendizaje">Aprendizaje</option><option value="productividad">Productividad</option><option value="bienestar">Bienestar</option></select></div>
+      <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="addHabit()">Agregar</button></div>`;
+  } else if (type === 'workout') {
+    html = `<div class="modal-title">Nueva rutina</div>
+      <div class="form-group"><label class="form-label">Nombre</label><input type="text" class="form-input" id="newWorkoutName" placeholder="Ej: Full Body"></div>
+      <div class="form-group"><label class="form-label">Duracion (min)</label><input type="number" class="form-input" id="newWorkoutDuration" value="45"></div>
+      <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="addWorkout()">Crear</button></div>`;
+  } else if (type === 'subject') {
+    html = `<div class="modal-title">Nueva materia</div>
+      <div class="form-group"><label class="form-label">Nombre</label><input type="text" class="form-input" id="newSubjectName" placeholder="Ej: Fisica"></div>
+      <div class="form-group"><label class="form-label">Emoji</label><input type="text" class="form-input" id="newSubjectEmoji" value="📚" maxlength="2"></div>
+      <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="addSubject()">Agregar</button></div>`;
+  } else if (type === 'transaction') {
+    html = `<div class="modal-title">Nueva transaccion</div>
+      <div class="form-group"><label class="form-label">Nombre</label><input type="text" class="form-input" id="newTxName" placeholder="Ej: Cena"></div>
+      <div class="form-group"><label class="form-label">Monto</label><input type="number" class="form-input" id="newTxAmount" placeholder="0"></div>
+      <div class="form-group"><label class="form-label">Tipo</label><select class="form-select" id="newTxType"><option value="expense">Gasto</option><option value="income">Ingreso</option></select></div>
+      <div class="form-group"><label class="form-label">Categoria</label><input type="text" class="form-input" id="newTxCategory" placeholder="Ej: Comida"></div>
+      <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="addTransaction()">Agregar</button></div>`;
+  }
+  content.innerHTML = html;
+  modal.classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('active');
+}
+
+async function addHabit() {
+  const name = document.getElementById('newHabitName').value.trim();
+  const category = document.getElementById('newHabitCategory').value;
+  if (!name) return;
+  appData.habits.push({ id: Date.now(), name, category, streak: 0, done: false, user_id: currentUser?.id });
+  await saveData();
+  closeModal();
+  renderHabits();
+  renderDashboard();
+  showToast('Habito agregado');
+}
+
+async function addWorkout() {
+  const name = document.getElementById('newWorkoutName').value.trim();
+  const duration = document.getElementById('newWorkoutDuration').value;
+  if (!name) return;
+  appData.workouts.push({ id: Date.now(), name, duration: duration + ' min', exercises: [], completed: false, user_id: currentUser?.id });
+  await saveData();
+  closeModal();
+  renderWorkouts();
+  showToast('Rutina creada');
+}
+
+async function addSubject() {
+  const name = document.getElementById('newSubjectName').value.trim();
+  const emoji = document.getElementById('newSubjectEmoji').value || '📚';
+  if (!name) return;
+  appData.subjects.push({ id: Date.now(), name, emoji, hours: 0, user_id: currentUser?.id });
+  await saveData();
+  closeModal();
+  renderSubjects();
+  showToast('Materia agregada');
+}
+
+async function addTransaction() {
+  const name = document.getElementById('newTxName').value.trim();
+  const amount = parseFloat(document.getElementById('newTxAmount').value);
+  const type = document.getElementById('newTxType').value;
+  const category = document.getElementById('newTxCategory').value.trim() || 'General';
+  if (!name || isNaN(amount)) return;
+  appData.transactions.push({
+    id: Date.now(), name, category,
+    amount: type === 'income' ? amount : -amount,
+    type, icon: type === 'income' ? '💰' : '💳',
+    iconBg: type === 'income' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+    user_id: currentUser?.id
+  });
+  await saveData();
+  closeModal();
+  renderTransactions();
+  renderDashboard();
+  showToast(type === 'income' ? 'Ingreso registrado' : 'Gasto registrado');
+}
+
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
