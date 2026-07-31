@@ -468,7 +468,7 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
 const SUPABASE_URL = 'https://nbnnpxqytyfkikxybljk.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_rxbWeCK4PIGIs5XDx1HFgA_e9x56kMk';
 
-let supabase = null;
+let supabaseClient = null;
 let currentUser = null;
 let isAuthMode = 'login';
 
@@ -499,8 +499,8 @@ async function init() {
       document.getElementById('loadingOverlay').style.display = 'none';
       return;
     }
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    const { data: { session } } = await supabase.auth.getSession();
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const { data: { session } } = await supabaseClient.auth.getSession();
     if (session) {
       currentUser = session.user;
       showApp();
@@ -550,9 +550,9 @@ async function handleAuth() {
   try {
     let result;
     if (isAuthMode === 'login') {
-      result = await supabase.auth.signInWithPassword({ email, password });
+      result = await supabaseClient.auth.signInWithPassword({ email, password });
     } else {
-      result = await supabase.auth.signUp({ email, password });
+      result = await supabaseClient.auth.signUp({ email, password });
     }
     if (result.error) {
       errorEl.textContent = result.error.message;
@@ -569,7 +569,7 @@ async function handleAuth() {
 }
 
 async function logout() {
-  await supabase.auth.signOut();
+  await supabaseClient.auth.signOut();
   currentUser = null;
   appData = { habits: [], workouts: [], subjects: [], transactions: [], budgets: [], notes: '', pomodoro_sessions: [], habitLogs: [] };
   showAuth();
@@ -584,13 +584,13 @@ async function loadData() {
       const tenDaysAgoStr = tenDaysAgo.toISOString().slice(0, 10);
 
       const [habitsRes, workoutsRes, subjectsRes, txRes, budgetsRes, notesRes, logsRes] = await Promise.all([
-        supabase.from('habits').select('*').eq('user_id', currentUser.id),
-        supabase.from('workouts').select('*').eq('user_id', currentUser.id),
-        supabase.from('subjects').select('*').eq('user_id', currentUser.id),
-        supabase.from('transactions').select('*').eq('user_id', currentUser.id),
-        supabase.from('budgets').select('*').eq('user_id', currentUser.id),
-        supabase.from('notes').select('*').eq('user_id', currentUser.id).maybeSingle(),
-        supabase.from('habit_logs').select('*').eq('user_id', currentUser.id).gte('log_date', tenDaysAgoStr)
+        supabaseClient.from('habits').select('*').eq('user_id', currentUser.id),
+        supabaseClient.from('workouts').select('*').eq('user_id', currentUser.id),
+        supabaseClient.from('subjects').select('*').eq('user_id', currentUser.id),
+        supabaseClient.from('transactions').select('*').eq('user_id', currentUser.id),
+        supabaseClient.from('budgets').select('*').eq('user_id', currentUser.id),
+        supabaseClient.from('notes').select('*').eq('user_id', currentUser.id).maybeSingle(),
+        supabaseClient.from('habit_logs').select('*').eq('user_id', currentUser.id).gte('log_date', tenDaysAgoStr)
       ]);
       const habits = habitsRes.data || [];
       const workouts = workoutsRes.data || [];
@@ -722,8 +722,8 @@ async function dbUpsert(table, row, onConflict) {
     const payload = { ...row, user_id: currentUser.id };
     const opts = onConflict ? { onConflict } : undefined;
     const { error } = opts
-      ? await supabase.from(table).upsert(payload, opts)
-      : await supabase.from(table).upsert(payload);
+      ? await supabaseClient.from(table).upsert(payload, opts)
+      : await supabaseClient.from(table).upsert(payload);
     if (error) throw error;
     updateSyncStatus(true);
     return { error: null };
@@ -739,7 +739,7 @@ async function dbDelete(table, matches) {
   if (!currentUser) return { error: 'sin usuario' };
   if (!isOnline) { updateSyncStatus(false); return { error: 'offline' }; }
   try {
-    let query = supabase.from(table).delete();
+    let query = supabaseClient.from(table).delete();
     for (const [col, val] of Object.entries(matches)) {
       query = query.eq(col, val);
     }
