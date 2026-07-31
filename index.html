@@ -320,7 +320,7 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
         <div class="dash-card-header">
           <div class="dash-card-icon" style="background: rgba(236,72,153,0.15);">💰</div>
         </div>
-        <div class="dash-card-stat" id="dashBalance">$0</div>
+        <div class="dash-card-stat" id="dashBalance">S/ 0</div>
         <div class="dash-card-label">Balance</div>
         <div class="dash-card-trend" id="dashBalanceTrend">--</div>
       </div>
@@ -454,15 +454,15 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
     <div class="finance-summary">
       <div class="finance-box income">
         <div class="label">Ingresos</div>
-        <div class="amount" id="totalIncome">$0</div>
+        <div class="amount" id="totalIncome">S/ 0</div>
       </div>
       <div class="finance-box expense">
         <div class="label">Gastos</div>
-        <div class="amount" id="totalExpense">$0</div>
+        <div class="amount" id="totalExpense">S/ 0</div>
       </div>
       <div class="finance-box balance">
         <div class="label">Balance</div>
-        <div class="amount" id="totalBalance">$0</div>
+        <div class="amount" id="totalBalance">S/ 0</div>
       </div>
     </div>
     <div class="card">
@@ -653,8 +653,14 @@ async function loadData() {
         budgets.length === 0 && !notes;
 
       if (isBrandNewUser) {
-        seedDefaultData();
-        await pushAllToSupabase();
+        appData.habits = [];
+        appData.workouts = [];
+        appData.subjects = [];
+        appData.transactions = [];
+        appData.budgets = [];
+        appData.notes = '';
+        appData.habitLogs = [];
+        setTimeout(showWelcomeOnboarding, 400);
       } else {
         appData.habits = habits;
         appData.workouts = workouts;
@@ -677,82 +683,13 @@ async function loadData() {
   renderAll();
 }
 
-function seedDefaultData() {
-  appData = {
-    habits: [
-      { id: 1, name: 'Meditar 10 min', category: 'bienestar', streak: 5, done: false, user_id: currentUser?.id },
-      { id: 2, name: 'Leer 20 paginas', category: 'aprendizaje', streak: 12, done: false, user_id: currentUser?.id },
-      { id: 3, name: 'Tomar 2L de agua', category: 'salud', streak: 3, done: false, user_id: currentUser?.id },
-      { id: 4, name: 'Dormir 8 horas', category: 'salud', streak: 7, done: false, user_id: currentUser?.id },
-      { id: 5, name: 'Planificar manana', category: 'productividad', streak: 2, done: false, user_id: currentUser?.id }
-    ],
-    workouts: [
-      { id: 1, name: 'Push Day', duration: '45 min', exercises: [
-        { name: 'Press de banca', sets: '4x8', weight: '60kg' },
-        { name: 'Press militar', sets: '3x10', weight: '40kg' },
-        { name: 'Fondos', sets: '3x12', weight: 'Peso corporal' }
-      ], completed: false, user_id: currentUser?.id },
-      { id: 2, name: 'Pull Day', duration: '50 min', exercises: [
-        { name: 'Dominadas', sets: '4x8', weight: 'Peso corporal' },
-        { name: 'Remo con barra', sets: '4x10', weight: '50kg' },
-        { name: 'Curl de biceps', sets: '3x12', weight: '15kg' }
-      ], completed: false, user_id: currentUser?.id },
-      { id: 3, name: 'Leg Day', duration: '55 min', exercises: [
-        { name: 'Sentadilla', sets: '4x8', weight: '80kg' },
-        { name: 'Prensa', sets: '3x12', weight: '120kg' },
-        { name: 'Peso muerto', sets: '3x8', weight: '100kg' }
-      ], completed: false, user_id: currentUser?.id }
-    ],
-    subjects: [
-      { id: 1, name: 'Programacion', emoji: '💻', hours: 12, user_id: currentUser?.id },
-      { id: 2, name: 'Ingles', emoji: '🇬🇧', hours: 8, user_id: currentUser?.id },
-      { id: 3, name: 'Matematicas', emoji: '📐', hours: 6, user_id: currentUser?.id },
-      { id: 4, name: 'Diseno', emoji: '🎨', hours: 4, user_id: currentUser?.id }
-    ],
-    transactions: [
-      { id: 1, name: 'Salario', category: 'Ingreso', amount: 2500, type: 'income', icon: '💼', iconbg: 'rgba(34,197,94,0.15)', created_at: new Date().toISOString(), user_id: currentUser?.id },
-      { id: 2, name: 'Alquiler', category: 'Vivienda', amount: -800, type: 'expense', icon: '🏠', iconbg: 'rgba(239,68,68,0.15)', created_at: new Date().toISOString(), user_id: currentUser?.id },
-      { id: 3, name: 'Supermercado', category: 'Comida', amount: -150, type: 'expense', icon: '🛒', iconbg: 'rgba(239,68,68,0.15)', created_at: new Date().toISOString(), user_id: currentUser?.id },
-      { id: 4, name: 'Netflix', category: 'Entretenimiento', amount: -15, type: 'expense', icon: '🎬', iconbg: 'rgba(239,68,68,0.15)', created_at: new Date().toISOString(), user_id: currentUser?.id },
-      { id: 5, name: 'Freelance', category: 'Ingreso extra', amount: 400, type: 'income', icon: '💻', iconbg: 'rgba(34,197,94,0.15)', created_at: new Date().toISOString(), user_id: currentUser?.id }
-    ],
-    budgets: [
-      { category: 'Vivienda', spent: 800, budget_limit: 800, color: '#ef4444', user_id: currentUser?.id },
-      { category: 'Comida', spent: 350, budget_limit: 500, color: '#f59e0b', user_id: currentUser?.id },
-      { category: 'Transporte', spent: 120, budget_limit: 200, color: '#3b82f6', user_id: currentUser?.id },
-      { category: 'Entretenimiento', spent: 80, budget_limit: 150, color: '#ec4899', user_id: currentUser?.id },
-      { category: 'Ahorro', spent: 300, budget_limit: 500, color: '#10b981', user_id: currentUser?.id }
-    ],
-    notes: '',
-    pomodoro_sessions: [],
-    habitLogs: seedSampleHabitLogs()
-  };
-}
-
-// genera un puñado de registros de ejemplo de los ultimos dias, solo para que el
-// grafico y calendario no arranquen vacios en una cuenta nueva
-function seedSampleHabitLogs() {
-  const logs = [];
-  const sampleHabitIds = [1, 2, 3, 4, 5];
-  for (let i = 5; i >= 1; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const dateStr = d.toISOString().slice(0, 10);
-    const howMany = 1 + Math.floor(Math.random() * 4);
-    const shuffled = [...sampleHabitIds].sort(() => Math.random() - 0.5).slice(0, howMany);
-    shuffled.forEach(habitId => {
-      logs.push({ id: Date.now() + Math.floor(Math.random() * 100000), habit_id: habitId, log_date: dateStr, done: true, user_id: currentUser?.id });
-    });
-  }
-  return logs;
-}
-
 function loadFromLocal() {
   const saved = localStorage.getItem('lifeos_data_' + (currentUser?.id || 'guest'));
   if (saved) {
     appData = JSON.parse(saved);
   } else {
-    seedDefaultData();
+    appData = { habits: [], workouts: [], subjects: [], transactions: [], budgets: [], notes: '', pomodoro_sessions: [], habitLogs: [] };
+    setTimeout(showWelcomeOnboarding, 400);
   }
 }
 
@@ -882,7 +819,7 @@ function renderDashboard() {
   const income = appData.transactions.filter(t => t.type === 'income').reduce((a, b) => a + b.amount, 0);
   const expense = Math.abs(appData.transactions.filter(t => t.type === 'expense').reduce((a, b) => a + b.amount, 0));
   const balance = income - expense;
-  animateNumber('dashBalance', balance, '$');
+  animateNumber('dashBalance', balance, 'S/ ');
   const trendEl = document.getElementById('dashBalanceTrend');
   if (balance >= 0) {
     trendEl.className = 'dash-card-trend trend-up';
@@ -995,11 +932,21 @@ function renderCalendar() {
   strip.innerHTML = html;
 }
 
+// bloque reutilizable para mostrar un estado vacio amigable en cualquier lista
+function emptyState(emoji, text) {
+  return `<div style="text-align:center; padding: 32px 12px; color: var(--text-muted);">
+    <div style="font-size:32px; margin-bottom:8px;">${emoji}</div>
+    <div style="font-size:13px;">${text}</div>
+  </div>`;
+}
+
 function renderHabits() {
   const list = document.getElementById('habitsList');
   const done = appData.habits.filter(h => h.done).length;
   document.getElementById('habitsProgress').textContent = `${done}/${appData.habits.length}`;
-  list.innerHTML = appData.habits.map(h => `
+  list.innerHTML = appData.habits.length === 0
+    ? emptyState('💪', 'Aún no tienes hábitos. Crea el primero con el botón de abajo.')
+    : appData.habits.map(h => `
     <div class="habit-item" data-habit-id="${h.id}" onclick="toggleHabit(${h.id})">
       <div class="habit-check ${h.done ? 'checked' : ''}">${h.done ? '✓' : ''}</div>
       <div class="habit-info">
@@ -1012,7 +959,9 @@ function renderHabits() {
   `).join('');
   const streaks = document.getElementById('streaksList');
   const sorted = [...appData.habits].sort((a, b) => b.streak - a.streak);
-  streaks.innerHTML = sorted.slice(0, 3).map(h => `
+  streaks.innerHTML = sorted.length === 0
+    ? emptyState('🔥', 'Tus rachas más largas aparecerán aquí.')
+    : sorted.slice(0, 3).map(h => `
     <div class="habit-item" style="cursor: default;">
       <div class="habit-info">
         <div class="habit-name">${h.name}</div>
@@ -1111,6 +1060,10 @@ async function deleteHabit(id) {
 
 function renderWorkouts() {
   const list = document.getElementById('workoutsList');
+  if (appData.workouts.length === 0) {
+    list.innerHTML = emptyState('🏋️', 'Aún no tienes rutinas. Crea la primera con el botón de abajo.');
+    return;
+  }
   list.innerHTML = appData.workouts.map(w => `
     <div class="workout-card" data-workout-id="${w.id}" onclick="toggleWorkout(${w.id})">
       <div class="workout-header">
@@ -1308,6 +1261,10 @@ function resetPomodoro() {
 
 function renderSubjects() {
   const grid = document.getElementById('subjectsGrid');
+  if (appData.subjects.length === 0) {
+    grid.innerHTML = emptyState('📚', 'Aún no tienes materias. Agrega la primera con el botón de abajo.');
+    return;
+  }
   grid.innerHTML = appData.subjects.map(s => `
     <div class="subject-card" style="position:relative;">
       <span class="delete-icon" style="position:absolute; top:6px; right:6px;" onclick="event.stopPropagation(); deleteSubject(${s.id})" title="Eliminar">🗑</span>
@@ -1335,6 +1292,11 @@ function loadNotes() {
 
 function renderTransactions() {
   const list = document.getElementById('transactionsList');
+  if (appData.transactions.length === 0) {
+    list.innerHTML = emptyState('💰', 'Aún no tienes transacciones. Registra la primera con el botón de abajo.');
+    updateFinanceSummary();
+    return;
+  }
   list.innerHTML = appData.transactions.slice().reverse().map(t => `
     <div class="transaction-item">
       <div class="tx-icon" style="background: ${t.iconbg};">${t.icon}</div>
@@ -1342,7 +1304,7 @@ function renderTransactions() {
         <div class="tx-name">${t.name}</div>
         <div class="tx-category">${t.category}</div>
       </div>
-      <div class="tx-amount ${t.type}">${t.type === 'income' ? '+' : ''}$${Math.abs(t.amount).toLocaleString()}</div>
+      <div class="tx-amount ${t.type}">${t.type === 'income' ? '+' : ''}S/ ${Math.abs(t.amount).toLocaleString()}</div>
       <span class="delete-icon" onclick="deleteTransaction(${t.id})" title="Eliminar">🗑</span>
     </div>
   `).join('');
@@ -1353,9 +1315,9 @@ function updateFinanceSummary() {
   const income = appData.transactions.filter(t => t.type === 'income').reduce((a, b) => a + b.amount, 0);
   const expense = Math.abs(appData.transactions.filter(t => t.type === 'expense').reduce((a, b) => a + b.amount, 0));
   const balance = income - expense;
-  document.getElementById('totalIncome').textContent = `$${income.toLocaleString()}`;
-  document.getElementById('totalExpense').textContent = `$${expense.toLocaleString()}`;
-  document.getElementById('totalBalance').textContent = `$${balance.toLocaleString()}`;
+  document.getElementById('totalIncome').textContent = `S/ ${income.toLocaleString()}`;
+  document.getElementById('totalExpense').textContent = `S/ ${expense.toLocaleString()}`;
+  document.getElementById('totalBalance').textContent = `S/ ${balance.toLocaleString()}`;
 }
 
 // suma los gastos del mes actual para una categoria, a partir de transacciones reales
@@ -1386,7 +1348,7 @@ function renderBudgets() {
         <div class="budget-header">
           <span>${b.category}</span>
           <span style="display:flex; align-items:center; gap:8px;">
-            <span style="color: ${over ? 'var(--danger)' : 'var(--text-muted)'};">$${spent.toLocaleString()} / $${b.budget_limit.toLocaleString()}</span>
+            <span style="color: ${over ? 'var(--danger)' : 'var(--text-muted)'};">S/ ${spent.toLocaleString()} / S/ ${b.budget_limit.toLocaleString()}</span>
             <span class="delete-icon" onclick="editBudget('${b.category.replace(/'/g, "\\'")}')" title="Editar">✏️</span>
             <span class="delete-icon" onclick="deleteBudget('${b.category.replace(/'/g, "\\'")}')" title="Eliminar">🗑</span>
           </span>
@@ -1411,6 +1373,10 @@ async function deleteBudget(category) {
 function editBudget(category) {
   const b = appData.budgets.find(x => x.category === category);
   if (b) openModal('budget', b);
+}
+
+function showWelcomeOnboarding() {
+  openModal('welcome');
 }
 
 function openModal(type, editData) {
@@ -1458,6 +1424,32 @@ function openModal(type, editData) {
       <div class="form-group"><label class="form-label">Series x repeticiones</label><input type="text" class="form-input" id="newExerciseSets" placeholder="Ej: 4x8"></div>
       <div class="form-group"><label class="form-label">Peso</label><input type="text" class="form-input" id="newExerciseWeight" placeholder="Ej: 60kg o Peso corporal"></div>
       <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="addExercise()">Agregar</button></div>`;
+  } else if (type === 'welcome') {
+    html = `
+      <div style="text-align:center; margin-bottom: 18px;">
+        <div style="font-size: 40px; margin-bottom: 8px;">👋</div>
+        <div class="modal-title" style="margin-bottom:4px;">Bienvenido a LifeOS</div>
+        <div style="font-size: 13px; color: var(--text-muted);">Tu cuenta esta lista y completamente vacia, para que la llenes a tu manera.</div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap: 10px; margin-bottom: 18px;">
+        <div style="display:flex; gap:12px; align-items:flex-start; background:var(--bg); padding:12px; border-radius:12px;">
+          <div style="font-size:22px;">💪</div>
+          <div><div style="font-weight:600; font-size:14px;">Habitos</div><div style="font-size:12px; color:var(--text-muted);">Crea los que quieras seguir dia a dia y mira crecer tu racha.</div></div>
+        </div>
+        <div style="display:flex; gap:12px; align-items:flex-start; background:var(--bg); padding:12px; border-radius:12px;">
+          <div style="font-size:22px;">🏋️</div>
+          <div><div style="font-weight:600; font-size:14px;">Ejercicio</div><div style="font-size:12px; color:var(--text-muted);">Arma tus rutinas y agregales ejercicios cuando quieras.</div></div>
+        </div>
+        <div style="display:flex; gap:12px; align-items:flex-start; background:var(--bg); padding:12px; border-radius:12px;">
+          <div style="font-size:22px;">📚</div>
+          <div><div style="font-weight:600; font-size:14px;">Estudios</div><div style="font-size:12px; color:var(--text-muted);">Agrega tus materias y usa el Pomodoro para enfocarte.</div></div>
+        </div>
+        <div style="display:flex; gap:12px; align-items:flex-start; background:var(--bg); padding:12px; border-radius:12px;">
+          <div style="font-size:22px;">💰</div>
+          <div><div style="font-weight:600; font-size:14px;">Finanzas</div><div style="font-size:12px; color:var(--text-muted);">Registra tus ingresos y gastos, y crea presupuestos por categoria.</div></div>
+        </div>
+      </div>
+      <div class="modal-actions"><button class="btn btn-primary" style="width:100%;" onclick="closeModal()">Empezar</button></div>`;
   }
   content.innerHTML = html;
   modal.classList.add('active');
