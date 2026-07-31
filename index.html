@@ -454,11 +454,26 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
 
   <div class="lifeos-section" id="finance">
     <div class="finance-range-selector" id="financeRangeSelector">
-      <button class="nav-pill range-pill active" data-range="month" onclick="setFinanceRange('month')">Este mes</button>
+      <button class="nav-pill range-pill active" data-range="month" onclick="setFinanceRange('month')">Mes</button>
       <button class="nav-pill range-pill" data-range="quarter" onclick="setFinanceRange('quarter')">Trimestre</button>
       <button class="nav-pill range-pill" data-range="year" onclick="setFinanceRange('year')">Año</button>
-      <button class="nav-pill range-pill" data-range="all" onclick="setFinanceRange('all')">Todo</button>
+      <button class="nav-pill range-pill" data-range="all" onclick="setFinanceRange('all')">Acumulado</button>
       <button class="nav-pill range-pill" data-range="custom" onclick="setFinanceRange('custom')">Personalizado</button>
+    </div>
+    <div id="monthRangeInputs" style="display:flex; gap:8px; margin: 0 0 16px 0;">
+      <input type="month" id="monthRangePicker" class="form-input" style="margin-bottom:0;" onchange="applyMonthRange()">
+    </div>
+    <div id="quarterRangeInputs" style="display:none; gap:8px; margin: 0 0 16px 0;">
+      <select id="quarterRangePicker" class="form-select" style="margin-bottom:0;" onchange="applyQuarterRange()">
+        <option value="1">1er trimestre (Ene-Mar)</option>
+        <option value="2">2do trimestre (Abr-Jun)</option>
+        <option value="3">3er trimestre (Jul-Sep)</option>
+        <option value="4">4to trimestre (Oct-Dic)</option>
+      </select>
+      <input type="number" id="quarterYearPicker" class="form-input" style="margin-bottom:0; max-width:100px;" onchange="applyQuarterRange()">
+    </div>
+    <div id="yearRangeInputs" style="display:none; gap:8px; margin: 0 0 16px 0;">
+      <input type="number" id="yearRangePicker" class="form-input" style="margin-bottom:0; max-width:120px;" onchange="applyYearRange()">
     </div>
     <div id="customRangeInputs" style="display:none; gap:8px; margin: 0 0 16px 0;">
       <input type="date" id="customRangeStart" class="form-input" style="margin-bottom:0;" onchange="applyCustomRange()">
@@ -582,6 +597,7 @@ function showApp() {
   document.getElementById('userAvatar').textContent = currentUser.email[0].toUpperCase();
   document.getElementById('loadingOverlay').style.display = 'none';
   updateDate();
+  initFinanceRangeDefaults();
   renderAll();
 }
 
@@ -1332,15 +1348,49 @@ function loadNotes() {
 
 // ---------- rango de fechas para la seccion de finanzas ----------
 let financeRange = 'month'; // 'month' | 'quarter' | 'year' | 'all' | 'custom'
+let selectedMonthValue = null; // 'YYYY-MM'
+let selectedQuarter = null;    // 1-4
+let selectedQuarterYear = null;
+let selectedYear = null;
 let customRangeStartDate = null;
 let customRangeEndDate = null;
+
+function initFinanceRangeDefaults() {
+  const now = new Date();
+  selectedMonthValue = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  document.getElementById('monthRangePicker').value = selectedMonthValue;
+  selectedQuarter = Math.floor(now.getMonth() / 3) + 1;
+  selectedQuarterYear = now.getFullYear();
+  document.getElementById('quarterRangePicker').value = String(selectedQuarter);
+  document.getElementById('quarterYearPicker').value = selectedQuarterYear;
+  selectedYear = now.getFullYear();
+  document.getElementById('yearRangePicker').value = selectedYear;
+}
 
 function setFinanceRange(range) {
   financeRange = range;
   document.querySelectorAll('.range-pill').forEach(p => p.classList.toggle('active', p.dataset.range === range));
+  document.getElementById('monthRangeInputs').style.display = range === 'month' ? 'flex' : 'none';
+  document.getElementById('quarterRangeInputs').style.display = range === 'quarter' ? 'flex' : 'none';
+  document.getElementById('yearRangeInputs').style.display = range === 'year' ? 'flex' : 'none';
   document.getElementById('customRangeInputs').style.display = range === 'custom' ? 'flex' : 'none';
   renderTransactions();
-  renderExpenseChart();
+}
+
+function applyMonthRange() {
+  selectedMonthValue = document.getElementById('monthRangePicker').value;
+  renderTransactions();
+}
+
+function applyQuarterRange() {
+  selectedQuarter = parseInt(document.getElementById('quarterRangePicker').value);
+  selectedQuarterYear = parseInt(document.getElementById('quarterYearPicker').value) || new Date().getFullYear();
+  renderTransactions();
+}
+
+function applyYearRange() {
+  selectedYear = parseInt(document.getElementById('yearRangePicker').value) || new Date().getFullYear();
+  renderTransactions();
 }
 
 function applyCustomRange() {
@@ -1349,27 +1399,33 @@ function applyCustomRange() {
   customRangeStartDate = startVal ? new Date(startVal + 'T00:00:00') : null;
   customRangeEndDate = endVal ? new Date(endVal + 'T23:59:59') : null;
   renderTransactions();
-  renderExpenseChart();
 }
 
-// calcula el rango de fechas [start, end] segun la seleccion actual. null,null = sin filtro (todo)
+// calcula el rango de fechas [start, end] segun la seleccion actual. null,null = sin filtro (acumulado)
 function getFinanceRangeBounds() {
-  const now = new Date();
   if (financeRange === 'month') {
-    return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: now };
+    const [y, m] = (selectedMonthValue || '').split('-').map(Number);
+    if (!y || !m) return { start: null, end: null };
+    const start = new Date(y, m - 1, 1);
+    const end = new Date(y, m, 0, 23, 59, 59);
+    return { start, end };
   }
   if (financeRange === 'quarter') {
-    const start = new Date(now);
-    start.setMonth(start.getMonth() - 3);
-    return { start, end: now };
+    const q = selectedQuarter || 1;
+    const y = selectedQuarterYear || new Date().getFullYear();
+    const startMonth = (q - 1) * 3;
+    const start = new Date(y, startMonth, 1);
+    const end = new Date(y, startMonth + 3, 0, 23, 59, 59);
+    return { start, end };
   }
   if (financeRange === 'year') {
-    return { start: new Date(now.getFullYear(), 0, 1), end: now };
+    const y = selectedYear || new Date().getFullYear();
+    return { start: new Date(y, 0, 1), end: new Date(y, 11, 31, 23, 59, 59) };
   }
   if (financeRange === 'custom') {
     return { start: customRangeStartDate, end: customRangeEndDate };
   }
-  return { start: null, end: null }; // 'all'
+  return { start: null, end: null }; // 'all' / acumulado
 }
 
 // filtra transacciones dentro del rango activo. Transacciones sin fecha (datos muy viejos) siempre se incluyen
@@ -1393,7 +1449,7 @@ function renderTransactions() {
   } else if (filtered.length === 0) {
     list.innerHTML = emptyState('🔍', 'No hay transacciones en el rango seleccionado.');
   } else {
-    list.innerHTML = filtered.slice().reverse().map(t => `
+    list.innerHTML = filtered.slice().sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)).map(t => `
     <div class="transaction-item">
       <div class="tx-icon" style="background: ${t.iconbg};">${t.icon}</div>
       <div class="tx-info">
@@ -1547,11 +1603,13 @@ function openModal(type, editData) {
       <div class="form-group"><label class="form-label">Emoji</label><input type="text" class="form-input" id="newSubjectEmoji" value="📚" maxlength="2"></div>
       <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="addSubject()">Agregar</button></div>`;
   } else if (type === 'transaction') {
+    const todayVal = new Date().toISOString().slice(0, 10);
     html = `<div class="modal-title">Nueva transaccion</div>
       <div class="form-group"><label class="form-label">Nombre</label><input type="text" class="form-input" id="newTxName" placeholder="Ej: Cena"></div>
       <div class="form-group"><label class="form-label">Monto</label><input type="number" class="form-input" id="newTxAmount" placeholder="0"></div>
       <div class="form-group"><label class="form-label">Tipo</label><select class="form-select" id="newTxType"><option value="expense">Gasto</option><option value="income">Ingreso</option></select></div>
       <div class="form-group"><label class="form-label">Categoria</label><input type="text" class="form-input" id="newTxCategory" placeholder="Ej: Comida"></div>
+      <div class="form-group"><label class="form-label">Fecha</label><input type="date" class="form-input" id="newTxDate" value="${todayVal}" max="${todayVal}"></div>
       <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="addTransaction()">Agregar</button></div>`;
   } else if (type === 'budget') {
     const isEdit = !!editData;
@@ -1714,13 +1772,18 @@ async function addTransaction() {
   const amount = parseFloat(document.getElementById('newTxAmount').value);
   const type = document.getElementById('newTxType').value;
   const category = document.getElementById('newTxCategory').value.trim() || 'General';
+  const dateVal = document.getElementById('newTxDate').value;
   if (!name || isNaN(amount)) return;
+  // usamos la hora actual del dia elegido, para no romper el orden cronologico dentro del mismo dia
+  const now = new Date();
+  const chosenDate = dateVal ? new Date(dateVal + 'T00:00:00') : now;
+  chosenDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
   const tx = {
     id: Date.now(), name, category,
     amount: type === 'income' ? amount : -amount,
     type, icon: type === 'income' ? '💰' : '💳',
     iconbg: type === 'income' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
-    created_at: new Date().toISOString(),
+    created_at: chosenDate.toISOString(),
     user_id: currentUser?.id
   };
   appData.transactions.push(tx);
