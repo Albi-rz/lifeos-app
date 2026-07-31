@@ -571,6 +571,24 @@ function toggleAuthMode() {
   document.getElementById('authError').textContent = '';
 }
 
+// traduce los mensajes de error mas comunes de Supabase Auth al espanol
+function translateAuthError(message) {
+  const map = [
+    [/email rate limit exceeded/i, 'Se superó el límite de correos por hora. Espera un momento e inténtalo de nuevo, o desactiva la confirmación de email en Supabase mientras pruebas.'],
+    [/invalid login credentials/i, 'Correo o contraseña incorrectos'],
+    [/user already registered/i, 'Ya existe una cuenta con ese correo, mejor inicia sesión'],
+    [/password should be at least/i, 'La contraseña debe tener al menos 6 caracteres'],
+    [/unable to validate email address/i, 'El correo no es válido'],
+    [/email not confirmed/i, 'Debes confirmar tu correo antes de iniciar sesión (revisa tu bandeja de entrada)'],
+    [/too many requests/i, 'Demasiados intentos, espera un momento e inténtalo de nuevo'],
+    [/network/i, 'Error de conexión, revisa tu internet']
+  ];
+  for (const [pattern, translation] of map) {
+    if (pattern.test(message)) return translation;
+  }
+  return message; // si no reconocemos el mensaje, mostramos el original
+}
+
 async function handleAuth() {
   const email = document.getElementById('authEmail').value.trim();
   const password = document.getElementById('authPassword').value;
@@ -585,7 +603,7 @@ async function handleAuth() {
       result = await supabaseClient.auth.signUp({ email, password });
     }
     if (result.error) {
-      errorEl.textContent = result.error.message;
+      errorEl.textContent = translateAuthError(result.error.message);
     } else {
       currentUser = result.data.user;
       showApp();
