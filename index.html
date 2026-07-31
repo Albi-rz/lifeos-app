@@ -1540,7 +1540,7 @@ function renderExcelView() {
     return;
   }
   rows.innerHTML = monthTx.map(t => {
-    const dateVal = new Date(t.created_at).toISOString().slice(0, 10);
+    const dateVal = toLocalDateStr(new Date(t.created_at));
     const cats = getTxCategories(t.type);
     const catOptions = (cats.includes(t.category) ? cats : [...cats, t.category]).map(c => `<option value="${c}" ${c === t.category ? 'selected' : ''}>${c}</option>`).join('');
     return `
@@ -1578,13 +1578,10 @@ function updateTxField(id, field, rawValue) {
     t.category = rawValue;
   } else if (field === 'date') {
     if (!rawValue) return;
-    const now = new Date();
-    const d = new Date(rawValue + 'T00:00:00');
-    d.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
-    t.created_at = d.toISOString();
+    t.created_at = dateFromPicker(rawValue).toISOString();
   }
   cacheLocal();
-  renderExcelView();
+  renderTransactions();
   renderDashboard();
   renderBudgets();
   // solo sincronizamos si ya tiene nombre (la columna es obligatoria en Supabase)
@@ -1597,7 +1594,7 @@ function addExcelRow() {
   const [y, m] = excelMonthValue.split('-').map(Number);
   const daysInMonth = new Date(y, m, 0).getDate();
   const day = Math.min(new Date().getDate(), daysInMonth);
-  const dateObj = new Date(y, m - 1, day, new Date().getHours(), new Date().getMinutes());
+  const dateObj = new Date(y, m - 1, day, 12, 0, 0);
   const tx = {
     id: Date.now() + Math.floor(Math.random() * 1000),
     name: '', category: getTxCategories('expense')[0], amount: 0, type: 'expense',
@@ -1972,6 +1969,21 @@ function getChosenTxCategory() {
 // escapa comillas para insertar valores de forma segura dentro de atributos HTML
 function escapeAttr(str) {
   return (str || '').replace(/"/g, '&quot;');
+}
+
+// convierte una fecha a 'YYYY-MM-DD' usando componentes LOCALES (no UTC), para no saltar de dia por zona horaria
+function toLocalDateStr(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+// construye un Date a partir de un valor de <input type="date"> (YYYY-MM-DD), fijando el mediodia local
+// para evitar que la conversion a UTC empuje la fecha al dia anterior o siguiente
+function dateFromPicker(value) {
+  const [y, m, d] = value.split('-').map(Number);
+  return new Date(y, m - 1, d, 12, 0, 0);
 }
 
 function openModal(type, editData) {
