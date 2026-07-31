@@ -159,6 +159,19 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
 .finance-box.expense .amount { color: var(--danger); }
 .finance-box.balance .amount { color: var(--accent-primary); }
 .transaction-item { display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: var(--bg); border-radius: var(--radius-sm); margin-bottom: 8px; border: 1px solid transparent; transition: all 0.3s ease; }
+
+.excel-month-nav { display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 12px; }
+.btn-icon-nav { background: var(--bg); border: 1px solid var(--border); color: var(--text); width: 32px; height: 32px; border-radius: 8px; font-size: 16px; cursor: pointer; }
+.btn-icon-nav:active { transform: scale(0.92); }
+#excelMonthLabel { font-weight: 600; font-size: 14px; text-transform: capitalize; min-width: 140px; text-align: center; }
+.excel-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.excel-row { display: grid; grid-template-columns: 130px 1.4fr 1fr 90px 110px 32px; gap: 6px; align-items: center; padding: 6px 8px; border-bottom: 1px solid var(--border); min-width: 620px; }
+.excel-row:last-child { border-bottom: none; }
+.excel-header { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; background: var(--bg); font-weight: 600; }
+.excel-row input, .excel-row select { width: 100%; padding: 6px 8px; font-size: 12px; border-radius: 6px; border: 1px solid transparent; background: transparent; color: var(--text); }
+.excel-row input:hover, .excel-row select:hover, .excel-row input:focus, .excel-row select:focus { border-color: var(--border); background: var(--bg); outline: none; }
+.excel-row .excel-amount.income { color: var(--success); }
+.excel-row .excel-amount.expense { color: var(--danger); }
 .transaction-item:hover { border-color: var(--border); }
 .tx-icon { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
 .tx-info { flex: 1; }
@@ -521,9 +534,26 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
           <div class="card-icon" style="background: rgba(236,72,153,0.15); color: var(--accent-finance);">💳</div>
           Transacciones
         </div>
-        <button class="btn btn-primary" style="padding: 8px 16px; font-size: 13px;" onclick="openModal('transaction')">+ Agregar</button>
+        <div style="display:flex; gap:8px; flex:none;">
+          <button class="btn btn-secondary" style="padding: 8px 14px; font-size: 13px;" id="viewToggleBtn" onclick="toggleFinanceView()">📊 Vista rapida</button>
+          <button class="btn btn-primary" style="padding: 8px 16px; font-size: 13px;" onclick="openModal('transaction')">+ Agregar</button>
+        </div>
       </div>
       <div id="transactionsList"></div>
+      <div id="transactionsExcelView" style="display:none;">
+        <div class="excel-month-nav">
+          <button class="btn-icon-nav" onclick="shiftExcelMonth(-1)">←</button>
+          <span id="excelMonthLabel"></span>
+          <button class="btn-icon-nav" onclick="shiftExcelMonth(1)">→</button>
+        </div>
+        <div class="excel-table-wrap">
+          <div class="excel-row excel-header">
+            <div>Fecha</div><div>Nombre</div><div>Categoria</div><div>Tipo</div><div>Monto</div><div></div>
+          </div>
+          <div id="excelRows"></div>
+        </div>
+        <button class="add-btn" style="margin-top:10px;" onclick="addExcelRow()">+ Agregar fila</button>
+      </div>
     </div>
     <div class="card">
       <div class="card-header">
@@ -1471,6 +1501,115 @@ function getTransactionsInRange() {
   });
 }
 
+// ---------- vista rapida tipo Excel ----------
+let financeViewMode = 'list'; // 'list' | 'excel'
+let excelMonthValue = null; // 'YYYY-MM', mes que se esta viendo/editando en la vista Excel
+
+function toggleFinanceView() {
+  financeViewMode = financeViewMode === 'list' ? 'excel' : 'list';
+  document.getElementById('transactionsList').style.display = financeViewMode === 'list' ? 'block' : 'none';
+  document.getElementById('transactionsExcelView').style.display = financeViewMode === 'excel' ? 'block' : 'none';
+  document.getElementById('viewToggleBtn').textContent = financeViewMode === 'excel' ? '📋 Vista lista' : '📊 Vista rapida';
+  if (financeViewMode === 'excel') {
+    if (!excelMonthValue) excelMonthValue = selectedMonthValue || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+    renderExcelView();
+  }
+}
+
+function shiftExcelMonth(delta) {
+  const [y, m] = excelMonthValue.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  excelMonthValue = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  renderExcelView();
+}
+
+function renderExcelView() {
+  const [y, m] = excelMonthValue.split('-').map(Number);
+  const label = new Date(y, m - 1, 1).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+  document.getElementById('excelMonthLabel').textContent = label;
+
+  const monthTx = appData.transactions.filter(t => {
+    if (!t.created_at) return false;
+    const d = new Date(t.created_at);
+    return d.getFullYear() === y && d.getMonth() === m - 1;
+  }).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+  const rows = document.getElementById('excelRows');
+  if (monthTx.length === 0) {
+    rows.innerHTML = `<div style="padding: 20px; text-align:center; color:var(--text-muted); font-size:13px;">Sin transacciones este mes. Usa "+ Agregar fila" para empezar.</div>`;
+    return;
+  }
+  rows.innerHTML = monthTx.map(t => {
+    const dateVal = new Date(t.created_at).toISOString().slice(0, 10);
+    const cats = getTxCategories(t.type);
+    const catOptions = (cats.includes(t.category) ? cats : [...cats, t.category]).map(c => `<option value="${c}" ${c === t.category ? 'selected' : ''}>${c}</option>`).join('');
+    return `
+    <div class="excel-row">
+      <input type="date" value="${dateVal}" onchange="updateTxField(${t.id}, 'date', this.value)">
+      <input type="text" value="${escapeAttr(t.name)}" placeholder="Nombre" onchange="updateTxField(${t.id}, 'name', this.value)">
+      <select onchange="updateTxField(${t.id}, 'category', this.value)">${catOptions}</select>
+      <select onchange="updateTxField(${t.id}, 'type', this.value)">
+        <option value="expense" ${t.type === 'expense' ? 'selected' : ''}>Gasto</option>
+        <option value="income" ${t.type === 'income' ? 'selected' : ''}>Ingreso</option>
+      </select>
+      <input type="number" class="excel-amount ${t.type}" value="${Math.abs(t.amount)}" onchange="updateTxField(${t.id}, 'amount', this.value)">
+      <span class="delete-icon" onclick="deleteTransaction(${t.id})" title="Eliminar">🗑</span>
+    </div>
+  `;
+  }).join('');
+}
+
+// actualiza un solo campo de una transaccion desde la vista Excel (se guarda al salir del campo, como en una hoja de calculo)
+function updateTxField(id, field, rawValue) {
+  const t = appData.transactions.find(x => x.id === id);
+  if (!t) return;
+  if (field === 'name') {
+    t.name = rawValue.trim();
+  } else if (field === 'amount') {
+    const amt = parseFloat(rawValue);
+    if (isNaN(amt)) return;
+    t.amount = t.type === 'income' ? Math.abs(amt) : -Math.abs(amt);
+  } else if (field === 'type') {
+    t.type = rawValue;
+    t.amount = rawValue === 'income' ? Math.abs(t.amount) : -Math.abs(t.amount);
+    t.icon = rawValue === 'income' ? '💰' : '💳';
+    t.iconbg = rawValue === 'income' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)';
+  } else if (field === 'category') {
+    t.category = rawValue;
+  } else if (field === 'date') {
+    if (!rawValue) return;
+    const now = new Date();
+    const d = new Date(rawValue + 'T00:00:00');
+    d.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
+    t.created_at = d.toISOString();
+  }
+  cacheLocal();
+  renderExcelView();
+  renderDashboard();
+  renderBudgets();
+  // solo sincronizamos si ya tiene nombre (la columna es obligatoria en Supabase)
+  if (t.name && t.name.trim()) {
+    dbUpsert('transactions', t);
+  }
+}
+
+function addExcelRow() {
+  const [y, m] = excelMonthValue.split('-').map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const day = Math.min(new Date().getDate(), daysInMonth);
+  const dateObj = new Date(y, m - 1, day, new Date().getHours(), new Date().getMinutes());
+  const tx = {
+    id: Date.now() + Math.floor(Math.random() * 1000),
+    name: '', category: getTxCategories('expense')[0], amount: 0, type: 'expense',
+    icon: '💳', iconbg: 'rgba(239,68,68,0.15)',
+    created_at: dateObj.toISOString(),
+    user_id: currentUser?.id
+  };
+  appData.transactions.push(tx);
+  cacheLocal();
+  renderExcelView();
+}
+
 function renderTransactions() {
   const list = document.getElementById('transactionsList');
   const filtered = getTransactionsInRange();
@@ -1494,6 +1633,7 @@ function renderTransactions() {
   }
   updateFinanceSummary();
   renderExpenseChart();
+  if (financeViewMode === 'excel' && excelMonthValue) renderExcelView();
 }
 
 function updateFinanceSummary() {
