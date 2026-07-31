@@ -78,6 +78,8 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
 .tag-aprendizaje { background: rgba(59,130,246,0.15); color: var(--accent-study); }
 .tag-productividad { background: rgba(245,158,11,0.15); color: var(--accent-exercise); }
 .tag-bienestar { background: rgba(236,72,153,0.15); color: var(--accent-finance); }
+.delete-icon { font-size: 14px; opacity: 0.45; cursor: pointer; padding: 4px; transition: opacity 0.2s ease, color 0.2s ease; flex-shrink: 0; }
+.delete-icon:hover { opacity: 1; color: var(--danger); }
 .add-btn { width: 100%; padding: 14px; border: 2px dashed var(--border); border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 8px; }
 .add-btn:hover { border-color: var(--accent-primary); color: var(--accent-primary); background: rgba(99,102,241,0.05); }
 .calendar-strip { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0; scrollbar-width: none; }
@@ -575,22 +577,42 @@ async function loadData() {
   if (!currentUser) return;
   if (isOnline) {
     try {
-      const { data: habits } = await supabase.from('habits').select('*').eq('user_id', currentUser.id);
-      const { data: workouts } = await supabase.from('workouts').select('*').eq('user_id', currentUser.id);
-      const { data: subjects } = await supabase.from('subjects').select('*').eq('user_id', currentUser.id);
-      const { data: transactions } = await supabase.from('transactions').select('*').eq('user_id', currentUser.id);
-      const { data: budgets } = await supabase.from('budgets').select('*').eq('user_id', currentUser.id);
-      const { data: notes } = await supabase.from('notes').select('*').eq('user_id', currentUser.id).single();
-      if (habits && habits.length) appData.habits = habits;
-      if (workouts && workouts.length) appData.workouts = workouts;
-      if (subjects && subjects.length) appData.subjects = subjects;
-      if (transactions && transactions.length) appData.transactions = transactions;
-      if (budgets && budgets.length) appData.budgets = budgets;
-      if (notes) appData.notes = notes.content || '';
-      localStorage.setItem('lifeos_data_' + currentUser.id, JSON.stringify(appData));
+      const [habitsRes, workoutsRes, subjectsRes, txRes, budgetsRes, notesRes] = await Promise.all([
+        supabase.from('habits').select('*').eq('user_id', currentUser.id),
+        supabase.from('workouts').select('*').eq('user_id', currentUser.id),
+        supabase.from('subjects').select('*').eq('user_id', currentUser.id),
+        supabase.from('transactions').select('*').eq('user_id', currentUser.id),
+        supabase.from('budgets').select('*').eq('user_id', currentUser.id),
+        supabase.from('notes').select('*').eq('user_id', currentUser.id).maybeSingle()
+      ]);
+      const habits = habitsRes.data || [];
+      const workouts = workoutsRes.data || [];
+      const subjects = subjectsRes.data || [];
+      const transactions = txRes.data || [];
+      const budgets = budgetsRes.data || [];
+      const notes = notesRes.data;
+
+      const isBrandNewUser = habits.length === 0 && workouts.length === 0 &&
+        subjects.length === 0 && transactions.length === 0 &&
+        budgets.length === 0 && !notes;
+
+      if (isBrandNewUser) {
+        seedDefaultData();
+        await pushAllToSupabase();
+      } else {
+        appData.habits = habits;
+        appData.workouts = workouts;
+        appData.subjects = subjects;
+        appData.transactions = transactions;
+        appData.budgets = budgets;
+        appData.notes = notes ? (notes.content || '') : '';
+      }
+      cacheLocal();
       updateSyncStatus(true);
     } catch (e) {
+      console.error('Error cargando datos:', e);
       loadFromLocal();
+      updateSyncStatus(false);
     }
   } else {
     loadFromLocal();
@@ -598,88 +620,124 @@ async function loadData() {
   renderAll();
 }
 
+function seedDefaultData() {
+  appData = {
+    habits: [
+      { id: 1, name: 'Meditar 10 min', category: 'bienestar', streak: 5, done: false, user_id: currentUser?.id },
+      { id: 2, name: 'Leer 20 paginas', category: 'aprendizaje', streak: 12, done: false, user_id: currentUser?.id },
+      { id: 3, name: 'Tomar 2L de agua', category: 'salud', streak: 3, done: false, user_id: currentUser?.id },
+      { id: 4, name: 'Dormir 8 horas', category: 'salud', streak: 7, done: false, user_id: currentUser?.id },
+      { id: 5, name: 'Planificar manana', category: 'productividad', streak: 2, done: false, user_id: currentUser?.id }
+    ],
+    workouts: [
+      { id: 1, name: 'Push Day', duration: '45 min', exercises: [
+        { name: 'Press de banca', sets: '4x8', weight: '60kg' },
+        { name: 'Press militar', sets: '3x10', weight: '40kg' },
+        { name: 'Fondos', sets: '3x12', weight: 'Peso corporal' }
+      ], completed: false, user_id: currentUser?.id },
+      { id: 2, name: 'Pull Day', duration: '50 min', exercises: [
+        { name: 'Dominadas', sets: '4x8', weight: 'Peso corporal' },
+        { name: 'Remo con barra', sets: '4x10', weight: '50kg' },
+        { name: 'Curl de biceps', sets: '3x12', weight: '15kg' }
+      ], completed: false, user_id: currentUser?.id },
+      { id: 3, name: 'Leg Day', duration: '55 min', exercises: [
+        { name: 'Sentadilla', sets: '4x8', weight: '80kg' },
+        { name: 'Prensa', sets: '3x12', weight: '120kg' },
+        { name: 'Peso muerto', sets: '3x8', weight: '100kg' }
+      ], completed: false, user_id: currentUser?.id }
+    ],
+    subjects: [
+      { id: 1, name: 'Programacion', emoji: '💻', hours: 12, user_id: currentUser?.id },
+      { id: 2, name: 'Ingles', emoji: '🇬🇧', hours: 8, user_id: currentUser?.id },
+      { id: 3, name: 'Matematicas', emoji: '📐', hours: 6, user_id: currentUser?.id },
+      { id: 4, name: 'Diseno', emoji: '🎨', hours: 4, user_id: currentUser?.id }
+    ],
+    transactions: [
+      { id: 1, name: 'Salario', category: 'Ingreso', amount: 2500, type: 'income', icon: '💼', iconbg: 'rgba(34,197,94,0.15)', user_id: currentUser?.id },
+      { id: 2, name: 'Alquiler', category: 'Vivienda', amount: -800, type: 'expense', icon: '🏠', iconbg: 'rgba(239,68,68,0.15)', user_id: currentUser?.id },
+      { id: 3, name: 'Supermercado', category: 'Comida', amount: -150, type: 'expense', icon: '🛒', iconbg: 'rgba(239,68,68,0.15)', user_id: currentUser?.id },
+      { id: 4, name: 'Netflix', category: 'Entretenimiento', amount: -15, type: 'expense', icon: '🎬', iconbg: 'rgba(239,68,68,0.15)', user_id: currentUser?.id },
+      { id: 5, name: 'Freelance', category: 'Ingreso extra', amount: 400, type: 'income', icon: '💻', iconbg: 'rgba(34,197,94,0.15)', user_id: currentUser?.id }
+    ],
+    budgets: [
+      { category: 'Vivienda', spent: 800, budget_limit: 800, color: '#ef4444', user_id: currentUser?.id },
+      { category: 'Comida', spent: 350, budget_limit: 500, color: '#f59e0b', user_id: currentUser?.id },
+      { category: 'Transporte', spent: 120, budget_limit: 200, color: '#3b82f6', user_id: currentUser?.id },
+      { category: 'Entretenimiento', spent: 80, budget_limit: 150, color: '#ec4899', user_id: currentUser?.id },
+      { category: 'Ahorro', spent: 300, budget_limit: 500, color: '#10b981', user_id: currentUser?.id }
+    ],
+    notes: '',
+    pomodoro_sessions: []
+  };
+}
+
 function loadFromLocal() {
   const saved = localStorage.getItem('lifeos_data_' + (currentUser?.id || 'guest'));
   if (saved) {
     appData = JSON.parse(saved);
   } else {
-    appData = {
-      habits: [
-        { id: 1, name: 'Meditar 10 min', category: 'bienestar', streak: 5, done: false, user_id: currentUser?.id },
-        { id: 2, name: 'Leer 20 paginas', category: 'aprendizaje', streak: 12, done: false, user_id: currentUser?.id },
-        { id: 3, name: 'Tomar 2L de agua', category: 'salud', streak: 3, done: false, user_id: currentUser?.id },
-        { id: 4, name: 'Dormir 8 horas', category: 'salud', streak: 7, done: false, user_id: currentUser?.id },
-        { id: 5, name: 'Planificar manana', category: 'productividad', streak: 2, done: false, user_id: currentUser?.id }
-      ],
-      workouts: [
-        { id: 1, name: 'Push Day', duration: '45 min', exercises: [
-          { name: 'Press de banca', sets: '4x8', weight: '60kg' },
-          { name: 'Press militar', sets: '3x10', weight: '40kg' },
-          { name: 'Fondos', sets: '3x12', weight: 'Peso corporal' }
-        ], completed: false, user_id: currentUser?.id },
-        { id: 2, name: 'Pull Day', duration: '50 min', exercises: [
-          { name: 'Dominadas', sets: '4x8', weight: 'Peso corporal' },
-          { name: 'Remo con barra', sets: '4x10', weight: '50kg' },
-          { name: 'Curl de biceps', sets: '3x12', weight: '15kg' }
-        ], completed: false, user_id: currentUser?.id },
-        { id: 3, name: 'Leg Day', duration: '55 min', exercises: [
-          { name: 'Sentadilla', sets: '4x8', weight: '80kg' },
-          { name: 'Prensa', sets: '3x12', weight: '120kg' },
-          { name: 'Peso muerto', sets: '3x8', weight: '100kg' }
-        ], completed: false, user_id: currentUser?.id }
-      ],
-      subjects: [
-        { id: 1, name: 'Programacion', emoji: '💻', hours: 12, user_id: currentUser?.id },
-        { id: 2, name: 'Ingles', emoji: '🇬🇧', hours: 8, user_id: currentUser?.id },
-        { id: 3, name: 'Matematicas', emoji: '📐', hours: 6, user_id: currentUser?.id },
-        { id: 4, name: 'Diseno', emoji: '🎨', hours: 4, user_id: currentUser?.id }
-      ],
-      transactions: [
-        { id: 1, name: 'Salario', category: 'Ingreso', amount: 2500, type: 'income', icon: '💼', iconBg: 'rgba(34,197,94,0.15)', user_id: currentUser?.id },
-        { id: 2, name: 'Alquiler', category: 'Vivienda', amount: -800, type: 'expense', icon: '🏠', iconBg: 'rgba(239,68,68,0.15)', user_id: currentUser?.id },
-        { id: 3, name: 'Supermercado', category: 'Comida', amount: -150, type: 'expense', icon: '🛒', iconBg: 'rgba(239,68,68,0.15)', user_id: currentUser?.id },
-        { id: 4, name: 'Netflix', category: 'Entretenimiento', amount: -15, type: 'expense', icon: '🎬', iconBg: 'rgba(239,68,68,0.15)', user_id: currentUser?.id },
-        { id: 5, name: 'Freelance', category: 'Ingreso extra', amount: 400, type: 'income', icon: '💻', iconBg: 'rgba(34,197,94,0.15)', user_id: currentUser?.id }
-      ],
-      budgets: [
-        { category: 'Vivienda', spent: 800, budget_limit: 800, color: '#ef4444', user_id: currentUser?.id },
-        { category: 'Comida', spent: 350, budget_limit: 500, color: '#f59e0b', user_id: currentUser?.id },
-        { category: 'Transporte', spent: 120, budget_limit: 200, color: '#3b82f6', user_id: currentUser?.id },
-        { category: 'Entretenimiento', spent: 80, budget_limit: 150, color: '#ec4899', user_id: currentUser?.id },
-        { category: 'Ahorro', spent: 300, budget_limit: 500, color: '#10b981', user_id: currentUser?.id }
-      ],
-      notes: '',
-      pomodoro_sessions: []
-    };
+    seedDefaultData();
   }
 }
 
-async function saveData() {
+// guarda una copia local (cache offline) sin tocar Supabase
+function cacheLocal() {
   if (!currentUser) return;
   localStorage.setItem('lifeos_data_' + currentUser.id, JSON.stringify(appData));
-  if (isOnline) {
-    try {
-      for (const habit of appData.habits) {
-        await supabase.from('habits').upsert({ ...habit, user_id: currentUser.id });
-      }
-      for (const workout of appData.workouts) {
-        await supabase.from('workouts').upsert({ ...workout, user_id: currentUser.id });
-      }
-      for (const subject of appData.subjects) {
-        await supabase.from('subjects').upsert({ ...subject, user_id: currentUser.id });
-      }
-      for (const tx of appData.transactions) {
-        await supabase.from('transactions').upsert({ ...tx, user_id: currentUser.id });
-      }
-      for (const budget of appData.budgets) {
-        await supabase.from('budgets').upsert({ ...budget, user_id: currentUser.id });
-      }
-      await supabase.from('notes').upsert({ user_id: currentUser.id, content: appData.notes });
-      updateSyncStatus(true);
-    } catch (e) {
-      updateSyncStatus(false);
-    }
-  } else {
+}
+
+// guarda/actualiza UNA fila en UNA tabla de Supabase
+async function dbUpsert(table, row, onConflict) {
+  if (!currentUser) return { error: 'sin usuario' };
+  if (!isOnline) { updateSyncStatus(false); return { error: 'offline' }; }
+  try {
+    const payload = { ...row, user_id: currentUser.id };
+    const opts = onConflict ? { onConflict } : undefined;
+    const { error } = opts
+      ? await supabase.from(table).upsert(payload, opts)
+      : await supabase.from(table).upsert(payload);
+    if (error) throw error;
+    updateSyncStatus(true);
+    return { error: null };
+  } catch (e) {
+    console.error(`Error guardando en ${table}:`, e);
+    updateSyncStatus(false);
+    return { error: e };
+  }
+}
+
+// elimina UNA fila de UNA tabla de Supabase, siempre acotado al usuario actual
+async function dbDelete(table, matchColumn, matchValue) {
+  if (!currentUser) return { error: 'sin usuario' };
+  if (!isOnline) { updateSyncStatus(false); return { error: 'offline' }; }
+  try {
+    const { error } = await supabase.from(table)
+      .delete()
+      .eq(matchColumn, matchValue)
+      .eq('user_id', currentUser.id);
+    if (error) throw error;
+    updateSyncStatus(true);
+    return { error: null };
+  } catch (e) {
+    console.error(`Error eliminando de ${table}:`, e);
+    updateSyncStatus(false);
+    return { error: e };
+  }
+}
+
+// re-sube TODO appData a Supabase: usado al sembrar datos nuevos o al reconectar tras estar offline
+async function pushAllToSupabase() {
+  if (!currentUser || !isOnline) return;
+  try {
+    for (const habit of appData.habits) await dbUpsert('habits', habit);
+    for (const workout of appData.workouts) await dbUpsert('workouts', workout);
+    for (const subject of appData.subjects) await dbUpsert('subjects', subject);
+    for (const tx of appData.transactions) await dbUpsert('transactions', tx);
+    for (const budget of appData.budgets) await dbUpsert('budgets', budget, 'user_id,category');
+    await dbUpsert('notes', { content: appData.notes }, 'user_id');
+    updateSyncStatus(true);
+  } catch (e) {
+    console.error('Error en sincronizacion completa:', e);
     updateSyncStatus(false);
   }
 }
@@ -702,7 +760,7 @@ function updateSyncStatus(online) {
 
 async function syncData() {
   if (!isOnline || !currentUser) return;
-  await saveData();
+  await pushAllToSupabase();
   showToast('Datos sincronizados');
 }
 
@@ -842,6 +900,7 @@ function renderHabits() {
         <div class="habit-streak">🔥 ${h.streak} dias de racha</div>
       </div>
       <span class="habit-tag tag-${h.category}">${h.category}</span>
+      <span class="delete-icon" onclick="event.stopPropagation(); deleteHabit(${h.id})" title="Eliminar">🗑</span>
     </div>
   `).join('');
   const streaks = document.getElementById('streaksList');
@@ -863,13 +922,27 @@ async function toggleHabit(id) {
     h.done = !h.done;
     if (h.done) h.streak++;
     else h.streak = Math.max(0, h.streak - 1);
-    await saveData();
+    cacheLocal();
     renderHabits();
     renderDashboard();
     renderNextSteps();
     renderCalendar();
     showToast(h.done ? `${h.name} completado!` : 'Habito desmarcado');
+    await dbUpsert('habits', h);
   }
+}
+
+async function deleteHabit(id) {
+  const h = appData.habits.find(x => x.id === id);
+  if (!h) return;
+  if (!confirm(`¿Eliminar el habito "${h.name}"?`)) return;
+  appData.habits = appData.habits.filter(x => x.id !== id);
+  cacheLocal();
+  renderHabits();
+  renderDashboard();
+  renderNextSteps();
+  showToast('Habito eliminado');
+  await dbDelete('habits', 'id', id);
 }
 
 function renderWorkouts() {
@@ -881,7 +954,10 @@ function renderWorkouts() {
           <div class="workout-name">${w.name} ${w.completed ? '✅' : ''}</div>
           <div class="workout-meta">${w.exercises.length} ejercicios · ${w.duration}</div>
         </div>
-        <span class="workout-duration">${w.duration}</span>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="workout-duration">${w.duration}</span>
+          <span class="delete-icon" onclick="event.stopPropagation(); deleteWorkout(${w.id})" title="Eliminar">🗑</span>
+        </div>
       </div>
       <div class="exercise-list">
         ${w.exercises.map(e => `<div class="exercise-item"><span>${e.name}</span><span>${e.sets} · ${e.weight}</span></div>`).join('')}
@@ -894,12 +970,26 @@ async function toggleWorkout(id) {
   const w = appData.workouts.find(x => x.id === id);
   if (w) {
     w.completed = !w.completed;
-    await saveData();
+    cacheLocal();
     renderWorkouts();
     renderDashboard();
     renderNextSteps();
     showToast(w.completed ? `${w.name} completado!` : 'Rutina desmarcada');
+    await dbUpsert('workouts', w);
   }
+}
+
+async function deleteWorkout(id) {
+  const w = appData.workouts.find(x => x.id === id);
+  if (!w) return;
+  if (!confirm(`¿Eliminar la rutina "${w.name}"?`)) return;
+  appData.workouts = appData.workouts.filter(x => x.id !== id);
+  cacheLocal();
+  renderWorkouts();
+  renderDashboard();
+  renderNextSteps();
+  showToast('Rutina eliminada');
+  await dbDelete('workouts', 'id', id);
 }
 
 let timerInterval = null;
@@ -993,7 +1083,7 @@ function togglePomodoro() {
         btn.className = 'timer-btn start';
         showToast('Sesion completada!');
         appData.pomodoro_sessions.push({ date: new Date().toISOString(), duration: pomoTotal / 60 });
-        saveData();
+        cacheLocal();
       }
     }, 1000);
   }
@@ -1015,7 +1105,8 @@ function resetPomodoro() {
 function renderSubjects() {
   const grid = document.getElementById('subjectsGrid');
   grid.innerHTML = appData.subjects.map(s => `
-    <div class="subject-card">
+    <div class="subject-card" style="position:relative;">
+      <span class="delete-icon" style="position:absolute; top:6px; right:6px;" onclick="event.stopPropagation(); deleteSubject(${s.id})" title="Eliminar">🗑</span>
       <div class="subject-emoji">${s.emoji}</div>
       <div class="subject-name">${s.name}</div>
       <div class="subject-hours">${s.hours}h esta semana</div>
@@ -1023,9 +1114,15 @@ function renderSubjects() {
   `).join('');
 }
 
+let notesSaveTimeout = null;
 function saveNotes() {
   appData.notes = document.getElementById('quickNotes').value;
-  saveData();
+  cacheLocal();
+  clearInterval(notesSaveTimeout);
+  clearTimeout(notesSaveTimeout);
+  notesSaveTimeout = setTimeout(() => {
+    dbUpsert('notes', { content: appData.notes }, 'user_id');
+  }, 800);
 }
 
 function loadNotes() {
@@ -1036,12 +1133,13 @@ function renderTransactions() {
   const list = document.getElementById('transactionsList');
   list.innerHTML = appData.transactions.slice().reverse().map(t => `
     <div class="transaction-item">
-      <div class="tx-icon" style="background: ${t.iconBg};">${t.icon}</div>
+      <div class="tx-icon" style="background: ${t.iconbg};">${t.icon}</div>
       <div class="tx-info">
         <div class="tx-name">${t.name}</div>
         <div class="tx-category">${t.category}</div>
       </div>
       <div class="tx-amount ${t.type}">${t.type === 'income' ? '+' : ''}$${Math.abs(t.amount).toLocaleString()}</div>
+      <span class="delete-icon" onclick="deleteTransaction(${t.id})" title="Eliminar">🗑</span>
     </div>
   `).join('');
   updateFinanceSummary();
@@ -1113,34 +1211,51 @@ async function addHabit() {
   const name = document.getElementById('newHabitName').value.trim();
   const category = document.getElementById('newHabitCategory').value;
   if (!name) return;
-  appData.habits.push({ id: Date.now(), name, category, streak: 0, done: false, user_id: currentUser?.id });
-  await saveData();
+  const habit = { id: Date.now(), name, category, streak: 0, done: false, user_id: currentUser?.id };
+  appData.habits.push(habit);
+  cacheLocal();
   closeModal();
   renderHabits();
   renderDashboard();
   showToast('Habito agregado');
+  await dbUpsert('habits', habit);
 }
 
 async function addWorkout() {
   const name = document.getElementById('newWorkoutName').value.trim();
   const duration = document.getElementById('newWorkoutDuration').value;
   if (!name) return;
-  appData.workouts.push({ id: Date.now(), name, duration: duration + ' min', exercises: [], completed: false, user_id: currentUser?.id });
-  await saveData();
+  const workout = { id: Date.now(), name, duration: duration + ' min', exercises: [], completed: false, user_id: currentUser?.id };
+  appData.workouts.push(workout);
+  cacheLocal();
   closeModal();
   renderWorkouts();
   showToast('Rutina creada');
+  await dbUpsert('workouts', workout);
 }
 
 async function addSubject() {
   const name = document.getElementById('newSubjectName').value.trim();
   const emoji = document.getElementById('newSubjectEmoji').value || '📚';
   if (!name) return;
-  appData.subjects.push({ id: Date.now(), name, emoji, hours: 0, user_id: currentUser?.id });
-  await saveData();
+  const subject = { id: Date.now(), name, emoji, hours: 0, user_id: currentUser?.id };
+  appData.subjects.push(subject);
+  cacheLocal();
   closeModal();
   renderSubjects();
   showToast('Materia agregada');
+  await dbUpsert('subjects', subject);
+}
+
+async function deleteSubject(id) {
+  const s = appData.subjects.find(x => x.id === id);
+  if (!s) return;
+  if (!confirm(`¿Eliminar la materia "${s.name}"?`)) return;
+  appData.subjects = appData.subjects.filter(x => x.id !== id);
+  cacheLocal();
+  renderSubjects();
+  showToast('Materia eliminada');
+  await dbDelete('subjects', 'id', id);
 }
 
 async function addTransaction() {
@@ -1149,18 +1264,32 @@ async function addTransaction() {
   const type = document.getElementById('newTxType').value;
   const category = document.getElementById('newTxCategory').value.trim() || 'General';
   if (!name || isNaN(amount)) return;
-  appData.transactions.push({
+  const tx = {
     id: Date.now(), name, category,
     amount: type === 'income' ? amount : -amount,
     type, icon: type === 'income' ? '💰' : '💳',
-    iconBg: type === 'income' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+    iconbg: type === 'income' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
     user_id: currentUser?.id
-  });
-  await saveData();
+  };
+  appData.transactions.push(tx);
+  cacheLocal();
   closeModal();
   renderTransactions();
   renderDashboard();
   showToast(type === 'income' ? 'Ingreso registrado' : 'Gasto registrado');
+  await dbUpsert('transactions', tx);
+}
+
+async function deleteTransaction(id) {
+  const t = appData.transactions.find(x => x.id === id);
+  if (!t) return;
+  if (!confirm(`¿Eliminar "${t.name}"?`)) return;
+  appData.transactions = appData.transactions.filter(x => x.id !== id);
+  cacheLocal();
+  renderTransactions();
+  renderDashboard();
+  showToast('Transaccion eliminada');
+  await dbDelete('transactions', 'id', id);
 }
 
 function showToast(msg) {
