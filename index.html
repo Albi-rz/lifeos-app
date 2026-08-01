@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>LifeOS - Tu Sistema de Crecimiento</title>
+<script>
+  // se aplica de inmediato, antes de pintar, para evitar el parpadeo del tema incorrecto
+  document.documentElement.setAttribute('data-theme', localStorage.getItem('lifeos_theme') || 'dark');
+</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <style>
@@ -27,6 +31,19 @@
   --radius-sm: 10px;
   --shadow: 0 4px 24px rgba(0,0,0,0.4);
   --shadow-lg: 0 8px 40px rgba(0,0,0,0.5);
+}
+[data-theme="light"] {
+  --bg: #f4f5f8;
+  --surface: #ffffff;
+  --surface-light: #edeef3;
+  --border: #e0e2e8;
+  --text: #17172a;
+  --text-muted: #6b7280;
+  --text-dim: #9ca3af;
+  --danger: #dc2626;
+  --success: #16a34a;
+  --shadow: 0 4px 24px rgba(0,0,0,0.06);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.1);
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html { overflow-x: hidden; max-width: 100%; }
@@ -220,6 +237,8 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
 .btn-secondary { background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); }
 .btn-secondary:hover { color: var(--text); }
 .sync-status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); padding: 4px 12px; border-radius: 50px; background: var(--bg); border: 1px solid var(--border); }
+.theme-toggle-btn { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform 0.2s ease; }
+.theme-toggle-btn:active { transform: scale(0.9) rotate(15deg); }
 .sync-status.online { color: var(--success); }
 .sync-status.offline { color: var(--danger); }
 .sync-dot { width: 6px; height: 6px; border-radius: 50%; }
@@ -283,6 +302,7 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
       <div class="lifeos-date" id="currentDate">--</div>
     </div>
     <div style="display:flex;align-items:center;gap:12px;">
+      <button class="theme-toggle-btn" id="themeToggleBtn" onclick="toggleTheme()" title="Cambiar tema">🌙</button>
       <div class="sync-status" id="syncStatus">
         <div class="sync-dot" id="syncDot"></div>
         <span id="syncText">Sincronizando...</span>
@@ -685,7 +705,36 @@ function showApp() {
   document.getElementById('loadingOverlay').style.display = 'none';
   updateDate();
   initFinanceRangeDefaults();
+  updateThemeButton();
   renderAll();
+}
+
+// ---------- tema claro/oscuro ----------
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || 'dark';
+  const next = current === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('lifeos_theme', next);
+  updateThemeButton();
+  // los graficos de Chart.js tienen colores fijos para texto/rejilla, hay que redibujarlos con el color correcto
+  renderChart();
+  renderTrendChart();
+  renderExpenseChart();
+}
+
+function updateThemeButton() {
+  const btn = document.getElementById('themeToggleBtn');
+  if (!btn) return;
+  const current = document.documentElement.getAttribute('data-theme') || 'dark';
+  btn.textContent = current === 'dark' ? '🌙' : '☀️';
+}
+
+function chartTextColor() {
+  return (document.documentElement.getAttribute('data-theme') === 'light') ? '#6b7280' : '#8a8a9a';
+}
+
+function chartGridColor() {
+  return (document.documentElement.getAttribute('data-theme') === 'light') ? '#e0e2e8' : '#2a2a3a';
 }
 
 function toggleAuthMode() {
@@ -1048,8 +1097,8 @@ function renderChart() {
       maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
-        x: { grid: { display: false }, ticks: { color: '#8a8a9a', font: { size: 11 } } },
-        y: { grid: { color: '#2a2a3a' }, ticks: { color: '#8a8a9a', font: { size: 11 }, stepSize: 1, precision: 0 } }
+        x: { grid: { display: false }, ticks: { color: chartTextColor(), font: { size: 11 } } },
+        y: { grid: { color: chartGridColor() }, ticks: { color: chartTextColor(), font: { size: 11 }, stepSize: 1, precision: 0 } }
       }
     }
   });
@@ -1938,12 +1987,12 @@ function renderTrendChart() {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { position: 'top', labels: { color: '#8a8a9a', font: { size: 11 }, boxWidth: 12 } },
+        legend: { position: 'top', labels: { color: chartTextColor(), font: { size: 11 }, boxWidth: 12 } },
         tooltip: { callbacks: { label: (ctx) => ` ${ctx.dataset.label}: S/ ${ctx.parsed.y.toLocaleString()}` } }
       },
       scales: {
-        x: { grid: { display: false }, ticks: { color: '#8a8a9a', font: { size: 10 } } },
-        y: { grid: { color: '#2a2a3a' }, ticks: { color: '#8a8a9a', font: { size: 10 } } }
+        x: { grid: { display: false }, ticks: { color: chartTextColor(), font: { size: 10 } } },
+        y: { grid: { color: chartGridColor() }, ticks: { color: chartTextColor(), font: { size: 10 } } }
       }
     }
   });
@@ -1990,8 +2039,8 @@ function renderBalanceChart() {
         tooltip: { callbacks: { label: (ctx) => ` S/ ${ctx.parsed.y.toLocaleString()}` } }
       },
       scales: {
-        x: { grid: { display: false }, ticks: { color: '#8a8a9a', font: { size: 10 } } },
-        y: { grid: { color: '#2a2a3a' }, ticks: { color: '#8a8a9a', font: { size: 10 } } }
+        x: { grid: { display: false }, ticks: { color: chartTextColor(), font: { size: 10 } } },
+        y: { grid: { color: chartGridColor() }, ticks: { color: chartTextColor(), font: { size: 10 } } }
       }
     }
   });
@@ -2035,7 +2084,7 @@ function renderExpenseChart() {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { position: 'bottom', labels: { color: '#8a8a9a', font: { size: 11 }, boxWidth: 12, padding: 12 } },
+        legend: { position: 'bottom', labels: { color: chartTextColor(), font: { size: 11 }, boxWidth: 12, padding: 12 } },
         tooltip: {
           callbacks: {
             label: (ctx) => ` ${ctx.label}: S/ ${ctx.parsed.toLocaleString()}`
