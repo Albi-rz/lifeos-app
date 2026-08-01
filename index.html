@@ -462,6 +462,12 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
         <button class="timer-btn reset" onclick="setTimer(90)">1:30</button>
         <button class="timer-btn reset" onclick="setTimer(120)">2m</button>
       </div>
+      <div style="display:flex; gap:8px; align-items:center; justify-content:center; margin-top:14px; flex-wrap:wrap;">
+        <input type="number" id="customTimerMin" min="0" max="59" placeholder="Min" class="form-input" style="width:70px; margin-bottom:0; text-align:center;">
+        <span style="color:var(--text-muted);">:</span>
+        <input type="number" id="customTimerSec" min="0" max="59" placeholder="Seg" class="form-input" style="width:70px; margin-bottom:0; text-align:center;">
+        <button class="btn btn-secondary" style="padding:8px 14px; font-size:13px;" onclick="setCustomTimer()">Usar tiempo personalizado</button>
+      </div>
     </div>
     <div class="card">
       <div class="card-header">
@@ -1659,6 +1665,7 @@ async function deleteWorkout(id) {
 }
 
 let timerInterval = null;
+let timerDuration = 45; // duracion original seleccionada (a esto vuelve "Reiniciar")
 let timerSeconds = 45;
 let timerRunning = false;
 
@@ -1687,8 +1694,20 @@ function formatTime(sec) {
 }
 
 function setTimer(sec) {
+  timerDuration = sec;
   timerSeconds = sec;
   resetTimer();
+}
+
+function setCustomTimer() {
+  const min = parseInt(document.getElementById('customTimerMin').value) || 0;
+  const sec = parseInt(document.getElementById('customTimerSec').value) || 0;
+  const total = min * 60 + sec;
+  if (total <= 0) {
+    showToast('Pon un tiempo valido', 'error');
+    return;
+  }
+  setTimer(total);
 }
 
 function toggleTimer() {
@@ -1713,8 +1732,8 @@ function toggleTimer() {
         showToast('Descanso terminado!', 'success');
         playBeep();
         if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-        timerSeconds = 45;
-        document.getElementById('restTimer').textContent = '00:45';
+        timerSeconds = timerDuration;
+        document.getElementById('restTimer').textContent = formatTime(timerDuration);
       }
     }, 1000);
   }
@@ -1723,6 +1742,7 @@ function toggleTimer() {
 function resetTimer() {
   clearInterval(timerInterval);
   timerRunning = false;
+  timerSeconds = timerDuration;
   document.getElementById('timerStartBtn').textContent = 'Iniciar';
   document.getElementById('timerStartBtn').className = 'timer-btn start';
   document.getElementById('restTimer').textContent = formatTime(timerSeconds);
