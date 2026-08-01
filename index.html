@@ -335,6 +335,25 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
   </div>
 
   <div class="lifeos-section active" id="dashboard">
+    <div class="card" id="levelCard" style="margin-bottom: 16px; background: linear-gradient(135deg, var(--surface), var(--surface-light));">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+        <div style="min-width:70px;">
+          <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em;">Nivel</div>
+          <div style="font-size:30px; font-weight:700;" id="levelNumber">1</div>
+        </div>
+        <div style="flex:1; min-width:180px;">
+          <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--text-muted); margin-bottom:6px;">
+            <span id="levelTitle">Principiante</span>
+            <span id="levelXpLabel">0 / 100 XP</span>
+          </div>
+          <div class="budget-track"><div class="budget-fill" id="levelXpBar" style="width:0%; background: linear-gradient(90deg, var(--accent-primary), #a855f7);"></div></div>
+        </div>
+        <div style="text-align:center; min-width:80px;">
+          <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em;">Puntaje de hoy</div>
+          <div style="font-size:24px; font-weight:700; color: var(--accent-primary);" id="dailyScoreValue">0</div>
+        </div>
+      </div>
+    </div>
     <div class="dash-grid">
       <div class="dash-card">
         <div class="dash-card-header">
@@ -657,7 +676,8 @@ let appData = {
   pomodoro_sessions: [],
   habitLogs: [],
   recurringTransactions: [],
-  savingsGoals: []
+  savingsGoals: [],
+  gamification: { totalXp: 0 }
 };
 
 let isOnline = navigator.onLine;
@@ -796,7 +816,7 @@ async function handleAuth() {
 async function logout() {
   await supabaseClient.auth.signOut();
   currentUser = null;
-  appData = { habits: [], workouts: [], subjects: [], transactions: [], budgets: [], notes: '', pomodoro_sessions: [], habitLogs: [], recurringTransactions: [], savingsGoals: [] };
+  appData = { habits: [], workouts: [], subjects: [], transactions: [], budgets: [], notes: '', pomodoro_sessions: [], habitLogs: [], recurringTransactions: [], savingsGoals: [], gamification: { totalXp: 0 } };
   showAuth();
 }
 
@@ -808,7 +828,7 @@ async function loadData() {
       tenDaysAgo.setDate(tenDaysAgo.getDate() - 9);
       const tenDaysAgoStr = tenDaysAgo.toISOString().slice(0, 10);
 
-      const [habitsRes, workoutsRes, subjectsRes, txRes, budgetsRes, notesRes, logsRes, recurringRes, goalsRes] = await Promise.all([
+      const [habitsRes, workoutsRes, subjectsRes, txRes, budgetsRes, notesRes, logsRes, recurringRes, goalsRes, progressRes] = await Promise.all([
         supabaseClient.from('habits').select('*').eq('user_id', currentUser.id),
         supabaseClient.from('workouts').select('*').eq('user_id', currentUser.id),
         supabaseClient.from('subjects').select('*').eq('user_id', currentUser.id),
@@ -817,7 +837,8 @@ async function loadData() {
         supabaseClient.from('notes').select('*').eq('user_id', currentUser.id).maybeSingle(),
         supabaseClient.from('habit_logs').select('*').eq('user_id', currentUser.id).gte('log_date', tenDaysAgoStr),
         supabaseClient.from('recurring_transactions').select('*').eq('user_id', currentUser.id),
-        supabaseClient.from('savings_goals').select('*').eq('user_id', currentUser.id)
+        supabaseClient.from('savings_goals').select('*').eq('user_id', currentUser.id),
+        supabaseClient.from('user_progress').select('*').eq('user_id', currentUser.id).maybeSingle()
       ]);
       const habits = habitsRes.data || [];
       const workouts = workoutsRes.data || [];
@@ -828,6 +849,7 @@ async function loadData() {
       const habitLogs = logsRes.data || [];
       const recurringTransactions = recurringRes.data || [];
       const savingsGoals = goalsRes.data || [];
+      const progress = progressRes.data;
 
       const isBrandNewUser = habits.length === 0 && workouts.length === 0 &&
         subjects.length === 0 && transactions.length === 0 &&
@@ -843,6 +865,7 @@ async function loadData() {
         appData.habitLogs = [];
         appData.recurringTransactions = [];
         appData.savingsGoals = [];
+        appData.gamification = { totalXp: 0 };
         setTimeout(showWelcomeOnboarding, 400);
       } else {
         appData.habits = habits;
@@ -854,6 +877,7 @@ async function loadData() {
         appData.habitLogs = habitLogs;
         appData.recurringTransactions = recurringTransactions;
         appData.savingsGoals = savingsGoals;
+        appData.gamification = { totalXp: progress ? (progress.total_xp || 0) : 0 };
         await runRecurringCheck();
       }
       cacheLocal();
@@ -874,7 +898,7 @@ function loadFromLocal() {
   if (saved) {
     appData = JSON.parse(saved);
   } else {
-    appData = { habits: [], workouts: [], subjects: [], transactions: [], budgets: [], notes: '', pomodoro_sessions: [], habitLogs: [], recurringTransactions: [], savingsGoals: [] };
+    appData = { habits: [], workouts: [], subjects: [], transactions: [], budgets: [], notes: '', pomodoro_sessions: [], habitLogs: [], recurringTransactions: [], savingsGoals: [], gamification: { totalXp: 0 } };
     setTimeout(showWelcomeOnboarding, 400);
   }
 }
@@ -941,6 +965,7 @@ async function pushAllToSupabase() {
     for (const log of appData.habitLogs) await dbUpsert('habit_logs', log, 'habit_id,log_date');
     for (const rec of appData.recurringTransactions) await dbUpsert('recurring_transactions', rec);
     for (const goal of appData.savingsGoals) await dbUpsert('savings_goals', goal);
+    await dbUpsert('user_progress', { total_xp: appData.gamification.totalXp }, 'user_id');
     await dbUpsert('notes', { content: appData.notes }, 'user_id');
     updateSyncStatus(true);
   } catch (e) {
@@ -1020,6 +1045,70 @@ function renderDashboard() {
     trendEl.className = 'dash-card-trend trend-down';
     trendEl.innerHTML = 'Revisa tus gastos';
   }
+  renderLevelCard();
+}
+
+// ---------- gamificacion: puntos y niveles ----------
+const XP_PER_LEVEL = 100;
+const LEVEL_TITLES = [
+  { min: 1, title: 'Principiante' },
+  { min: 3, title: 'Constante' },
+  { min: 6, title: 'Disciplinado' },
+  { min: 10, title: 'Imparable' },
+  { min: 15, title: 'Experto' },
+  { min: 20, title: 'Leyenda' }
+];
+
+function getLevel(xp) {
+  return Math.floor(Math.max(0, xp) / XP_PER_LEVEL) + 1;
+}
+
+function getLevelTitle(level) {
+  let title = LEVEL_TITLES[0].title;
+  for (const t of LEVEL_TITLES) {
+    if (level >= t.min) title = t.title;
+  }
+  return title;
+}
+
+// suma (o resta, si amount es negativo) puntos de experiencia, revisa si subiste de nivel y sincroniza
+async function addXp(amount) {
+  const before = getLevel(appData.gamification.totalXp);
+  appData.gamification.totalXp = Math.max(0, appData.gamification.totalXp + amount);
+  const after = getLevel(appData.gamification.totalXp);
+  cacheLocal();
+  renderLevelCard();
+  if (after > before) {
+    celebrateConfetti();
+    showToast(`¡Subiste a nivel ${after}: ${getLevelTitle(after)}! 🎉`, 'success');
+  }
+  await dbUpsert('user_progress', { total_xp: appData.gamification.totalXp }, 'user_id');
+}
+
+function renderLevelCard() {
+  const xp = appData.gamification.totalXp;
+  const level = getLevel(xp);
+  const xpIntoLevel = xp % XP_PER_LEVEL;
+  const pct = (xpIntoLevel / XP_PER_LEVEL) * 100;
+  document.getElementById('levelNumber').textContent = level;
+  document.getElementById('levelTitle').textContent = getLevelTitle(level);
+  document.getElementById('levelXpLabel').textContent = `${xpIntoLevel} / ${XP_PER_LEVEL} XP`;
+  document.getElementById('levelXpBar').style.width = pct + '%';
+  document.getElementById('dailyScoreValue').textContent = computeDailyScore();
+}
+
+// calcula un puntaje de 0 a 100 de que tan productivo fuiste HOY, sin afectar el XP total
+function computeDailyScore() {
+  let score = 0;
+  if (appData.habits.length > 0) {
+    const donePct = appData.habits.filter(h => h.done).length / appData.habits.length;
+    score += donePct * 50;
+  }
+  if (appData.workouts.some(w => w.completed)) score += 25;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const pomoToday = (appData.pomodoro_sessions || []).some(s => (s.date || '').slice(0, 10) === todayStr);
+  if (pomoToday) score += 25;
+  return Math.round(score);
 }
 
 // anima un numero en pantalla contando desde su valor actual hasta el nuevo
@@ -1214,6 +1303,7 @@ async function toggleHabit(id) {
       }, 250);
     }
     await dbUpsert('habits', h);
+    await addXp(h.done ? 10 : -10);
   }
 }
 
@@ -1342,6 +1432,7 @@ async function toggleWorkout(id) {
     }
     showToast(w.completed ? `${w.name} completado!` : 'Rutina desmarcada', w.completed ? 'success' : undefined);
     await dbUpsert('workouts', w);
+    await addXp(w.completed ? 25 : -25);
   }
 }
 
@@ -1450,6 +1541,7 @@ function togglePomodoro() {
         showToast('Sesion completada!', 'success');
         appData.pomodoro_sessions.push({ date: new Date().toISOString(), duration: pomoTotal / 60 });
         cacheLocal();
+        addXp(15);
       }
     }, 1000);
   }
@@ -2232,6 +2324,7 @@ async function addToGoal(id) {
   if (!wasReached && nowReached) {
     celebrateConfetti();
     showToast(`¡Meta "${g.name}" alcanzada! 🎉`, 'success');
+    await addXp(100);
   } else {
     showToast('Ahorro registrado', 'success');
   }
