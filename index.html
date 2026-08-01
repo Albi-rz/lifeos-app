@@ -211,8 +211,9 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
 .budget-track { height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; }
 .budget-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
 .dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
-.dash-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; transition: all 0.3s ease; }
-.dash-card:hover { box-shadow: var(--shadow); }
+.dash-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; transition: all 0.25s ease; position: relative; overflow: hidden; }
+.dash-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--card-accent, var(--accent-primary)); }
+.dash-card:hover { box-shadow: var(--shadow); transform: translateY(-2px); }
 .dash-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 .dash-card-icon { width: 44px; height: 44px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
 .dash-card-stat { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
@@ -366,7 +367,7 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
       </div>
     </div>
     <div class="dash-grid">
-      <div class="dash-card">
+      <div class="dash-card" style="--card-accent: var(--accent-habits);">
         <div class="dash-card-header">
           <div class="dash-card-icon" style="background: rgba(16,185,129,0.15);">🌱</div>
         </div>
@@ -374,7 +375,7 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
         <div class="dash-card-label">Habitos hoy</div>
         <div class="dash-card-trend trend-up" id="dashHabitsTrend">--</div>
       </div>
-      <div class="dash-card">
+      <div class="dash-card" style="--card-accent: var(--accent-exercise);">
         <div class="dash-card-header">
           <div class="dash-card-icon" style="background: rgba(245,158,11,0.15);">🏋️</div>
         </div>
@@ -382,15 +383,15 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
         <div class="dash-card-label">Entrenamientos</div>
         <div class="dash-card-trend trend-up" id="dashWorkoutsTrend">--</div>
       </div>
-      <div class="dash-card">
+      <div class="dash-card" style="--card-accent: var(--accent-study);">
         <div class="dash-card-header">
           <div class="dash-card-icon" style="background: rgba(59,130,246,0.15);">📚</div>
         </div>
         <div class="dash-card-stat" id="dashStudyHours">0h</div>
-        <div class="dash-card-label">Horas estudio</div>
-        <div class="dash-card-trend trend-up">Meta: 4h/dia</div>
+        <div class="dash-card-label">Horas estudio hoy</div>
+        <div class="dash-card-trend trend-up" id="dashStudyTrend">Meta: 4h/dia</div>
       </div>
-      <div class="dash-card">
+      <div class="dash-card" style="--card-accent: var(--accent-finance);">
         <div class="dash-card-header">
           <div class="dash-card-icon" style="background: rgba(236,72,153,0.15);">💰</div>
         </div>
@@ -1136,6 +1137,14 @@ function renderDashboard() {
   const completedWorkouts = appData.workouts.filter(w => w.completed).length;
   animateNumber('dashWorkouts', completedWorkouts);
   document.getElementById('dashWorkoutsTrend').textContent = completedWorkouts > 0 ? 'Sigue asi!' : 'Hoy toca entrenar';
+  const todayStr = toLocalDateStr(new Date());
+  const studyMinutesToday = (appData.studySessions || [])
+    .filter(s => !s.is_break && toLocalDateStr(new Date(s.completed_at)) === todayStr)
+    .reduce((sum, s) => sum + s.duration_minutes, 0);
+  document.getElementById('dashStudyHours').textContent = studyMinutesToday < 60
+    ? `${Math.round(studyMinutesToday)} min`
+    : `${(studyMinutesToday / 60).toFixed(1)}h`;
+  document.getElementById('dashStudyTrend').textContent = studyMinutesToday >= 240 ? 'Meta cumplida!' : 'Meta: 4h/dia';
   const income = appData.transactions.filter(t => t.type === 'income').reduce((a, b) => a + b.amount, 0);
   const expense = Math.abs(appData.transactions.filter(t => t.type === 'expense').reduce((a, b) => a + b.amount, 0));
   const balance = income - expense;
