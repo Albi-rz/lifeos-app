@@ -157,6 +157,7 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
 .timer-controls { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 .timer-btn { padding: 12px 28px; border-radius: 50px; border: none; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; }
 .timer-btn.start { background: var(--accent-exercise); color: white; box-shadow: 0 4px 16px rgba(245,158,11,0.3); }
+.timer-btn.start.study { background: var(--accent-study); box-shadow: 0 4px 16px rgba(59,130,246,0.3); }
 .timer-btn.start:hover { transform: scale(1.05); }
 .timer-btn.pause { background: var(--surface-light); color: var(--text); border: 1px solid var(--border); }
 .timer-btn.reset { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
@@ -532,7 +533,7 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
           <div class="pomo-progress-bar" id="pomoProgress" style="width: 0%"></div>
         </div>
         <div class="timer-controls">
-          <button class="timer-btn start" id="pomoStartBtn" onclick="togglePomodoro()">Iniciar</button>
+          <button class="timer-btn start study" id="pomoStartBtn" onclick="togglePomodoro()">Iniciar</button>
           <button class="timer-btn pause" onclick="resetPomodoro()">Reiniciar</button>
         </div>
         <div style="display:flex; gap:8px; align-items:center; justify-content:center; margin-top:12px; flex-wrap:wrap;">
@@ -1858,7 +1859,7 @@ function setPomodoro(min, btn) {
   document.getElementById('pomoTimer').textContent = formatTime(pomoSeconds);
   document.getElementById('pomoProgress').style.width = '0%';
   document.getElementById('pomoStartBtn').textContent = 'Iniciar';
-  document.getElementById('pomoStartBtn').className = 'timer-btn start';
+  document.getElementById('pomoStartBtn').className = 'timer-btn start study';
   document.querySelectorAll('.pomodoro-mode').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
 }
@@ -1880,7 +1881,7 @@ function setCustomPomodoro() {
   document.getElementById('pomoTimer').textContent = formatTime(pomoSeconds);
   document.getElementById('pomoProgress').style.width = '0%';
   document.getElementById('pomoStartBtn').textContent = 'Iniciar';
-  document.getElementById('pomoStartBtn').className = 'timer-btn start';
+  document.getElementById('pomoStartBtn').className = 'timer-btn start study';
 }
 
 function togglePomodoro() {
@@ -1889,7 +1890,7 @@ function togglePomodoro() {
     clearInterval(pomoInterval);
     pomoRunning = false;
     btn.textContent = 'Reanudar';
-    btn.className = 'timer-btn start';
+    btn.className = 'timer-btn start study';
   } else {
     pomoRunning = true;
     btn.textContent = 'Pausar';
@@ -1933,7 +1934,7 @@ function resetPomodoro() {
   document.getElementById('pomoTimer').textContent = formatTime(pomoSeconds);
   document.getElementById('pomoProgress').style.width = '0%';
   document.getElementById('pomoStartBtn').textContent = 'Iniciar';
-  document.getElementById('pomoStartBtn').className = 'timer-btn start';
+  document.getElementById('pomoStartBtn').className = 'timer-btn start study';
 }
 
 // llena el selector de materia del Pomodoro con las materias actuales
