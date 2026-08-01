@@ -517,6 +517,12 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
           <button class="timer-btn start" id="pomoStartBtn" onclick="togglePomodoro()">Iniciar</button>
           <button class="timer-btn pause" onclick="resetPomodoro()">Reiniciar</button>
         </div>
+        <div style="display:flex; gap:8px; align-items:center; justify-content:center; margin-top:12px; flex-wrap:wrap;">
+          <input type="number" id="customPomoMin" min="0" max="180" placeholder="Min" class="form-input" style="width:70px; margin-bottom:0; text-align:center;">
+          <span style="color:var(--text-muted);">:</span>
+          <input type="number" id="customPomoSec" min="0" max="59" placeholder="Seg" class="form-input" style="width:70px; margin-bottom:0; text-align:center;">
+          <button class="btn btn-secondary" style="padding:8px 14px; font-size:13px;" onclick="setCustomPomodoro()">Usar tiempo personalizado</button>
+        </div>
         <select class="form-select" id="pomoSubjectSelect" style="margin-top:12px; margin-bottom:0;">
           <option value="">Sin materia especifica</option>
         </select>
@@ -1753,6 +1759,7 @@ function resetTimer() {
 }
 
 let pomoInterval = null;
+let pomoDuration = 25 * 60; // duracion original elegida (a esto vuelve "Reiniciar")
 let pomoSeconds = 25 * 60;
 let pomoRunning = false;
 let pomoTotal = 25 * 60;
@@ -1760,6 +1767,7 @@ let pomoTotal = 25 * 60;
 function setPomodoro(min, btn) {
   clearInterval(pomoInterval);
   pomoRunning = false;
+  pomoDuration = min * 60;
   pomoSeconds = min * 60;
   pomoTotal = min * 60;
   document.getElementById('pomoTimer').textContent = formatTime(pomoSeconds);
@@ -1767,7 +1775,27 @@ function setPomodoro(min, btn) {
   document.getElementById('pomoStartBtn').textContent = 'Iniciar';
   document.getElementById('pomoStartBtn').className = 'timer-btn start';
   document.querySelectorAll('.pomodoro-mode').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+  if (btn) btn.classList.add('active');
+}
+
+function setCustomPomodoro() {
+  const min = parseInt(document.getElementById('customPomoMin').value) || 0;
+  const sec = parseInt(document.getElementById('customPomoSec').value) || 0;
+  const totalSec = min * 60 + sec;
+  if (totalSec <= 0) {
+    showToast('Pon un tiempo valido', 'error');
+    return;
+  }
+  document.querySelectorAll('.pomodoro-mode').forEach(b => b.classList.remove('active'));
+  clearInterval(pomoInterval);
+  pomoRunning = false;
+  pomoDuration = totalSec;
+  pomoSeconds = totalSec;
+  pomoTotal = totalSec;
+  document.getElementById('pomoTimer').textContent = formatTime(pomoSeconds);
+  document.getElementById('pomoProgress').style.width = '0%';
+  document.getElementById('pomoStartBtn').textContent = 'Iniciar';
+  document.getElementById('pomoStartBtn').className = 'timer-btn start';
 }
 
 function togglePomodoro() {
@@ -1796,6 +1824,10 @@ function togglePomodoro() {
         cacheLocal();
         addXp(15);
         addPomodoroHoursToSubject();
+        pomoSeconds = pomoDuration;
+        pomoTotal = pomoDuration;
+        document.getElementById('pomoTimer').textContent = formatTime(pomoDuration);
+        document.getElementById('pomoProgress').style.width = '0%';
       }
     }, 1000);
   }
@@ -1804,10 +1836,8 @@ function togglePomodoro() {
 function resetPomodoro() {
   clearInterval(pomoInterval);
   pomoRunning = false;
-  const activeMode = document.querySelector('.pomodoro-mode.active');
-  const min = activeMode ? (activeMode.textContent.includes('15') ? 15 : (activeMode.textContent.includes('5') ? 5 : 25)) : 25;
-  pomoSeconds = min * 60;
-  pomoTotal = min * 60;
+  pomoSeconds = pomoDuration;
+  pomoTotal = pomoDuration;
   document.getElementById('pomoTimer').textContent = formatTime(pomoSeconds);
   document.getElementById('pomoProgress').style.width = '0%';
   document.getElementById('pomoStartBtn').textContent = 'Iniciar';
