@@ -878,6 +878,7 @@ async function loadData() {
         appData.recurringTransactions = recurringTransactions;
         appData.savingsGoals = savingsGoals;
         appData.gamification = { totalXp: progress ? (progress.total_xp || 0) : 0 };
+        await checkAndResetDailyHabits();
         await runRecurringCheck();
       }
       cacheLocal();
@@ -1151,6 +1152,35 @@ function renderNextSteps() {
 let progressChart = null;
 function countHabitLogsForDate(dateStr) {
   return appData.habitLogs.filter(l => l.log_date === dateStr && l.done).length;
+}
+
+// se ejecuta una vez al abrir la app: "desmarca" los habitos que no se completaron HOY
+// (para que puedas volver a marcarlos y ganar XP de nuevo cada dia), y rompe la racha
+// de cualquier habito que se haya saltado un dia completo (ni ayer ni hoy completado)
+async function checkAndResetDailyHabits() {
+  const todayStr = toLocalDateStr(new Date());
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = toLocalDateStr(yesterday);
+
+  for (const h of appData.habits) {
+    const doneToday = appData.habitLogs.some(l => l.habit_id === h.id && l.log_date === todayStr && l.done);
+    const doneYesterday = appData.habitLogs.some(l => l.habit_id === h.id && l.log_date === yesterdayStr && l.done);
+    let changed = false;
+
+    if (h.done !== doneToday) {
+      h.done = doneToday;
+      changed = true;
+    }
+    if (!doneToday && !doneYesterday && h.streak > 0) {
+      h.streak = 0;
+      changed = true;
+    }
+    if (changed) {
+      await dbUpsert('habits', h);
+    }
+  }
+  cacheLocal();
 }
 
 function renderChart() {
