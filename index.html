@@ -526,6 +526,15 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
     <div class="card">
       <div class="card-header">
         <div class="card-title">
+          <div class="card-icon" style="background: rgba(236,72,153,0.15); color: var(--accent-finance);">📉</div>
+          Balance acumulado (ultimos 12 meses)
+        </div>
+      </div>
+      <div style="height: 200px;"><canvas id="balanceChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
           <div class="card-icon" style="background: rgba(236,72,153,0.15); color: var(--accent-finance);">📈</div>
           Gastos por categoria
         </div>
@@ -546,6 +555,13 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
         </div>
       </div>
       <input type="text" class="form-input" id="txSearchInput" placeholder="🔍 Buscar por nombre o categoria..." oninput="renderTransactions()" style="margin-bottom:12px;">
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;" id="txBulkBar">
+        <button class="btn btn-secondary" style="padding: 7px 12px; font-size: 12px;" id="selectModeBtn" onclick="toggleSelectMode()">☑️ Seleccionar</button>
+        <button class="btn btn-secondary" style="padding: 7px 12px; font-size: 12px; display:none;" id="bulkDeleteBtn" onclick="bulkDeleteSelected()">🗑 Eliminar (0)</button>
+        <button class="btn btn-secondary" style="padding: 7px 12px; font-size: 12px;" onclick="document.getElementById('csvImportInput').click()">⬆️ Importar CSV</button>
+        <button class="btn btn-secondary" style="padding: 7px 12px; font-size: 12px;" onclick="downloadCSVTemplate()">📄 Plantilla CSV</button>
+        <input type="file" id="csvImportInput" accept=".csv" style="display:none;" onchange="handleCSVImport(event)">
+      </div>
       <div id="transactionsList"></div>
       <div id="transactionsExcelView" style="display:none;">
         <div class="excel-month-nav">
@@ -1643,6 +1659,41 @@ function getSearchedTransactions() {
   return inRange.filter(t => t.name.toLowerCase().includes(term) || t.category.toLowerCase().includes(term));
 }
 
+// ---------- seleccion multiple para borrar ----------
+let selectMode = false;
+let selectedTxIds = new Set();
+
+function toggleSelectMode() {
+  selectMode = !selectMode;
+  selectedTxIds.clear();
+  document.getElementById('selectModeBtn').textContent = selectMode ? '✕ Cancelar seleccion' : '☑️ Seleccionar';
+  document.getElementById('bulkDeleteBtn').style.display = selectMode ? 'inline-block' : 'none';
+  renderTransactions();
+}
+
+function toggleTxSelect(id) {
+  if (selectedTxIds.has(id)) selectedTxIds.delete(id);
+  else selectedTxIds.add(id);
+  document.getElementById('bulkDeleteBtn').textContent = `🗑 Eliminar (${selectedTxIds.size})`;
+}
+
+async function bulkDeleteSelected() {
+  if (selectedTxIds.size === 0) return;
+  if (!confirm(`¿Eliminar ${selectedTxIds.size} transaccion(es) seleccionada(s)? No se puede deshacer.`)) return;
+  const ids = [...selectedTxIds];
+  appData.transactions = appData.transactions.filter(t => !ids.includes(t.id));
+  cacheLocal();
+  selectedTxIds.clear();
+  selectMode = false;
+  document.getElementById('selectModeBtn').textContent = '☑️ Seleccionar';
+  document.getElementById('bulkDeleteBtn').style.display = 'none';
+  renderTransactions();
+  renderDashboard();
+  renderBudgets();
+  showToast(`${ids.length} transaccion(es) eliminada(s)`, 'success');
+  for (const id of ids) await dbDelete('transactions', { id });
+}
+
 function renderTransactions() {
   const list = document.getElementById('transactionsList');
   const filtered = getSearchedTransactions();
@@ -1653,14 +1704,15 @@ function renderTransactions() {
   } else {
     list.innerHTML = filtered.slice().sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)).map(t => `
     <div class="transaction-item">
+      ${selectMode ? `<input type="checkbox" style="width:18px; height:18px; flex-shrink:0;" ${selectedTxIds.has(t.id) ? 'checked' : ''} onchange="toggleTxSelect(${t.id})">` : ''}
       <div class="tx-icon" style="background: ${t.iconbg};">${t.icon}</div>
       <div class="tx-info">
         <div class="tx-name">${t.name}</div>
         <div class="tx-category">${t.category}</div>
       </div>
       <div class="tx-amount ${t.type}">${t.type === 'income' ? '+' : ''}S/ ${Math.abs(t.amount).toLocaleString()}</div>
-      <span class="delete-icon" onclick="editTransaction(${t.id})" title="Editar">✏️</span>
-      <span class="delete-icon" onclick="deleteTransaction(${t.id})" title="Eliminar">🗑</span>
+      ${selectMode ? '' : `<span class="delete-icon" onclick="editTransaction(${t.id})" title="Editar">✏️</span>
+      <span class="delete-icon" onclick="deleteTransaction(${t.id})" title="Eliminar">🗑</span>`}
     </div>
   `).join('');
   }
@@ -1694,6 +1746,120 @@ function exportTransactionsCSV() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   showToast('CSV exportado', 'success');
+}
+
+// descarga una plantilla vacia con el formato EXACTO que debe seguir el CSV para poder importarlo
+function downloadCSVTemplate() {
+  const header = ['Fecha', 'Nombre', 'Categoria', 'Tipo', 'Monto'];
+  const example1 = ['2026-07-15', 'Supermercado', 'Comida', 'Gasto', '150'];
+  const example2 = ['2026-07-01', 'Salario', 'Salario', 'Ingreso', '2500'];
+  const csvContent = [header.join(','), example1.join(','), example2.join(',')].join('\n');
+  const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'lifeos-plantilla-transacciones.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Plantilla descargada. Llenala y usa "Importar CSV"', 'success');
+}
+
+// parser simple de CSV que respeta comillas (para nombres/categorias con comas)
+function parseCSVText(text) {
+  const rows = [];
+  let row = [];
+  let field = '';
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n' || c === '\r') {
+        if (c === '\r' && text[i + 1] === '\n') i++;
+        row.push(field); field = '';
+        if (row.some(f => f.trim() !== '')) rows.push(row);
+        row = [];
+      } else field += c;
+    }
+  }
+  if (field !== '' || row.length > 0) { row.push(field); if (row.some(f => f.trim() !== '')) rows.push(row); }
+  return rows;
+}
+
+const CSV_EXPECTED_HEADER = ['fecha', 'nombre', 'categoria', 'tipo', 'monto'];
+
+async function handleCSVImport(event) {
+  const file = event.target.files[0];
+  event.target.value = ''; // permite volver a elegir el mismo archivo despues
+  if (!file) return;
+  const text = await file.text();
+  const rows = parseCSVText(text);
+  if (rows.length < 1) {
+    showToast('El archivo esta vacio', 'error');
+    return;
+  }
+  const header = rows[0].map(h => h.trim().toLowerCase());
+  const matches = CSV_EXPECTED_HEADER.every((h, i) => header[i] === h);
+  if (!matches) {
+    alert(
+      'El CSV no tiene el formato esperado.\n\n' +
+      'Las columnas deben ser exactamente, en este orden:\n' +
+      'Fecha, Nombre, Categoria, Tipo, Monto\n\n' +
+      'Tipo debe decir "Ingreso" o "Gasto".\n' +
+      'Fecha en formato AAAA-MM-DD (ej. 2026-07-15).\n\n' +
+      'Descarga la plantilla con el botón "📄 Plantilla CSV" para ver un ejemplo exacto.'
+    );
+    return;
+  }
+
+  let imported = 0;
+  let skipped = 0;
+  const newTxs = [];
+  for (let i = 1; i < rows.length; i++) {
+    const [fecha, nombre, categoria, tipoRaw, montoRaw] = rows[i];
+    const tipo = (tipoRaw || '').trim().toLowerCase();
+    const type = tipo === 'ingreso' ? 'income' : (tipo === 'gasto' ? 'expense' : null);
+    const amount = parseFloat(montoRaw);
+    const dateMatch = /^\d{4}-\d{2}-\d{2}$/.test((fecha || '').trim());
+    if (!nombre || !nombre.trim() || !type || isNaN(amount) || !dateMatch) {
+      skipped++;
+      continue;
+    }
+    const tx = {
+      id: Date.now() + imported + Math.floor(Math.random() * 1000),
+      name: nombre.trim(),
+      category: (categoria || 'Otra').trim() || 'Otra',
+      amount: type === 'income' ? Math.abs(amount) : -Math.abs(amount),
+      type,
+      icon: type === 'income' ? '💰' : '💳',
+      iconbg: type === 'income' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+      created_at: dateFromPicker(fecha.trim()).toISOString(),
+      user_id: currentUser?.id
+    };
+    newTxs.push(tx);
+    imported++;
+  }
+
+  if (imported === 0) {
+    showToast('No se pudo importar ninguna fila, revisa el formato', 'error');
+    return;
+  }
+
+  appData.transactions.push(...newTxs);
+  cacheLocal();
+  renderTransactions();
+  renderDashboard();
+  renderBudgets();
+  showToast(`${imported} transaccion(es) importada(s)${skipped ? `, ${skipped} omitida(s) por formato` : ''}`, 'success');
+  for (const tx of newTxs) await dbUpsert('transactions', tx);
 }
 
 function updateFinanceSummary() {
@@ -1774,6 +1940,54 @@ function renderTrendChart() {
       plugins: {
         legend: { position: 'top', labels: { color: '#8a8a9a', font: { size: 11 }, boxWidth: 12 } },
         tooltip: { callbacks: { label: (ctx) => ` ${ctx.dataset.label}: S/ ${ctx.parsed.y.toLocaleString()}` } }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#8a8a9a', font: { size: 10 } } },
+        y: { grid: { color: '#2a2a3a' }, ticks: { color: '#8a8a9a', font: { size: 10 } } }
+      }
+    }
+  });
+  renderBalanceChart();
+}
+
+// grafico de linea con el balance acumulado (ingresos - gastos, sumado mes a mes) de los ultimos 12 meses
+let balanceChartInstance = null;
+function renderBalanceChart() {
+  const canvas = document.getElementById('balanceChart');
+  if (!canvas) return;
+  const now = new Date();
+  const labels = [];
+  const data = [];
+  let running = 0;
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    labels.push(d.toLocaleDateString('es-ES', { month: 'short', year: '2-digit' }));
+    running += incomeForMonth(d.getFullYear(), d.getMonth()) - expenseForMonth(d.getFullYear(), d.getMonth());
+    data.push(running);
+  }
+  if (balanceChartInstance) balanceChartInstance.destroy();
+  balanceChartInstance = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Balance acumulado',
+        data,
+        borderColor: '#6366f1',
+        backgroundColor: 'rgba(99,102,241,0.12)',
+        borderWidth: 3,
+        fill: true,
+        tension: 0.35,
+        pointBackgroundColor: '#6366f1',
+        pointRadius: 3
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: (ctx) => ` S/ ${ctx.parsed.y.toLocaleString()}` } }
       },
       scales: {
         x: { grid: { display: false }, ticks: { color: '#8a8a9a', font: { size: 10 } } },
@@ -2013,6 +2227,7 @@ function renderRecurring() {
       ${logged
         ? `<span style="font-size:11px; color:var(--success);">✓ este mes</span>`
         : `<span class="delete-icon" onclick="registerRecurringNow(${r.id})" title="Registrar este mes">📥</span>`}
+      <span class="delete-icon" onclick="editRecurring(${r.id})" title="Editar">✏️</span>
       <span class="delete-icon" onclick="deleteRecurring(${r.id})" title="Eliminar">🗑</span>
     </div>
   `;
@@ -2034,6 +2249,32 @@ async function addRecurring() {
   showToast('Transaccion recurrente creada', 'success');
   await dbUpsert('recurring_transactions', rec);
   await runRecurringCheck();
+}
+
+function editRecurring(id) {
+  const r = appData.recurringTransactions.find(x => x.id === id);
+  if (r) openModal('recurring', r);
+}
+
+async function updateRecurring(id) {
+  const r = appData.recurringTransactions.find(x => x.id === id);
+  if (!r) return;
+  const name = document.getElementById('newRecName').value.trim();
+  const amount = parseFloat(document.getElementById('newRecAmount').value);
+  const type = document.getElementById('newRecType').value;
+  const category = document.getElementById('newRecCategory').value;
+  const day = Math.min(28, Math.max(1, parseInt(document.getElementById('newRecDay').value) || 1));
+  if (!name || isNaN(amount)) return;
+  r.name = name;
+  r.amount = Math.abs(amount);
+  r.type = type;
+  r.category = category;
+  r.day_of_month = day;
+  cacheLocal();
+  closeModal();
+  renderRecurring();
+  showToast('Recurrente actualizada', 'success');
+  await dbUpsert('recurring_transactions', r);
 }
 
 async function deleteRecurring(id) {
@@ -2124,12 +2365,12 @@ function toggleTxCustomCategory() {
 }
 
 // llena el select de categoria del modal de transaccion recurrente
-function populateRecCategoryOptions() {
+function populateRecCategoryOptions(preselect) {
   const typeSel = document.getElementById('newRecType');
   const catSel = document.getElementById('newRecCategory');
   if (!typeSel || !catSel) return;
   const cats = getTxCategories(typeSel.value).filter(c => c !== 'Otra');
-  catSel.innerHTML = cats.map(c => `<option value="${c}">${c}</option>`).join('');
+  catSel.innerHTML = cats.map(c => `<option value="${c}" ${c === preselect ? 'selected' : ''}>${c}</option>`).join('');
 }
 
 // obtiene la categoria final elegida (fija u "Otra" personalizada)
@@ -2221,15 +2462,18 @@ function openModal(type, editData) {
       </div>
       <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="${isEdit ? 'updateBudget()' : 'addBudget()'}">${isEdit ? 'Guardar' : 'Agregar'}</button></div>`;
   } else if (type === 'recurring') {
-    const expenseCats = getTxCategories('expense').filter(c => c !== 'Otra');
-    const incomeCats = getTxCategories('income').filter(c => c !== 'Otra');
-    html = `<div class="modal-title">Nueva transaccion recurrente</div>
-      <div class="form-group"><label class="form-label">Nombre</label><input type="text" class="form-input" id="newRecName" placeholder="Ej: Alquiler"></div>
-      <div class="form-group"><label class="form-label">Monto</label><input type="number" class="form-input" id="newRecAmount" placeholder="0"></div>
-      <div class="form-group"><label class="form-label">Tipo</label><select class="form-select" id="newRecType" onchange="populateRecCategoryOptions()"><option value="expense">Gasto</option><option value="income">Ingreso</option></select></div>
+    const isEdit = !!editData;
+    const r = editData || {};
+    html = `<div class="modal-title">${isEdit ? 'Editar recurrente' : 'Nueva transaccion recurrente'}</div>
+      <div class="form-group"><label class="form-label">Nombre</label><input type="text" class="form-input" id="newRecName" placeholder="Ej: Alquiler" value="${isEdit ? escapeAttr(r.name) : ''}"></div>
+      <div class="form-group"><label class="form-label">Monto</label><input type="number" class="form-input" id="newRecAmount" placeholder="0" value="${isEdit ? Math.abs(r.amount) : ''}"></div>
+      <div class="form-group"><label class="form-label">Tipo</label><select class="form-select" id="newRecType" onchange="populateRecCategoryOptions()">
+        <option value="expense" ${(!isEdit || r.type === 'expense') ? 'selected' : ''}>Gasto</option>
+        <option value="income" ${isEdit && r.type === 'income' ? 'selected' : ''}>Ingreso</option>
+      </select></div>
       <div class="form-group"><label class="form-label">Categoria</label><select class="form-select" id="newRecCategory"></select></div>
-      <div class="form-group"><label class="form-label">Dia del mes</label><input type="number" class="form-input" id="newRecDay" min="1" max="28" value="1"></div>
-      <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="addRecurring()">Crear</button></div>`;
+      <div class="form-group"><label class="form-label">Dia del mes</label><input type="number" class="form-input" id="newRecDay" min="1" max="28" value="${isEdit ? r.day_of_month : 1}"></div>
+      <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="${isEdit ? `updateRecurring(${r.id})` : 'addRecurring()'}">${isEdit ? 'Guardar' : 'Crear'}</button></div>`;
   } else if (type === 'savingsGoal') {
     const colors = ['#6366f1', '#10b981', '#f59e0b', '#3b82f6', '#ec4899', '#8b5cf6'];
     html = `<div class="modal-title">Nueva meta de ahorro</div>
@@ -2296,7 +2540,7 @@ function openModal(type, editData) {
     populateTxCategoryOptions(editData ? editData.category : null);
   }
   if (type === 'recurring') {
-    populateRecCategoryOptions();
+    populateRecCategoryOptions(editData ? editData.category : null);
   }
 }
 
