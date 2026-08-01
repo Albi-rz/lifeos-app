@@ -125,6 +125,9 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
 .tag-productividad { background: rgba(245,158,11,0.15); color: var(--accent-exercise); }
 .tag-bienestar { background: rgba(236,72,153,0.15); color: var(--accent-finance); }
 .delete-icon { font-size: 14px; opacity: 0.45; cursor: pointer; padding: 4px; transition: opacity 0.2s ease, color 0.2s ease; flex-shrink: 0; }
+.emoji-preset-btn { font-size: 18px; padding: 6px 9px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); cursor: pointer; transition: all 0.15s ease; }
+.emoji-preset-btn:hover { border-color: var(--accent-study); }
+.emoji-preset-btn.selected { border-color: var(--accent-study); background: rgba(59,130,246,0.15); }
 .delete-icon:hover { opacity: 1; color: var(--danger); }
 .add-btn { width: 100%; padding: 14px; border: 2px dashed var(--border); border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 8px; }
 .add-btn:hover { border-color: var(--accent-primary); color: var(--accent-primary); background: rgba(99,102,241,0.05); }
@@ -1962,9 +1965,11 @@ function renderStudyHistory() {
   }
   list.innerHTML = studyOnly.slice(0, 15).map(s => {
     const date = new Date(s.completed_at).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    const subject = s.subject_id ? appData.subjects.find(x => x.id === s.subject_id) : null;
+    const icon = subject ? subject.emoji : '📚';
     return `
       <div class="transaction-item">
-        <div class="tx-icon" style="background: rgba(59,130,246,0.15);">📚</div>
+        <div class="tx-icon" style="background: rgba(59,130,246,0.15);">${icon}</div>
         <div class="tx-info">
           <div class="tx-name">${s.subject_name || 'Sin materia especifica'}</div>
           <div class="tx-category">${formatDurationLabel(s.duration_minutes)}</div>
@@ -3040,6 +3045,15 @@ function showWelcomeOnboarding() {
 }
 
 // categorias predefinidas para transacciones, separadas por tipo
+// emojis predefinidos para elegir rapido al crear/editar una materia
+const SUBJECT_EMOJI_PRESETS = ['📚', '📖', '🧮', '🔬', '💻', '🎨', '🌍', '🇬🇧', '⚖️', '🏛️', '🎵', '🏥', '📐', '🧪', '📊', '🗣️'];
+
+function selectSubjectEmoji(emoji, btnEl) {
+  document.getElementById('newSubjectEmoji').value = emoji;
+  document.querySelectorAll('.emoji-preset-btn').forEach(b => b.classList.remove('selected'));
+  if (btnEl) btnEl.classList.add('selected');
+}
+
 function getTxCategories(type) {
   return type === 'income'
     ? ['Salario', 'Ingreso extra', 'Freelance', 'Regalo', 'Otra']
@@ -3123,9 +3137,16 @@ function openModal(type, editData) {
   } else if (type === 'subject') {
     const isEdit = !!editData;
     const s = editData || {};
+    const currentEmoji = isEdit ? s.emoji : '📚';
     html = `<div class="modal-title">${isEdit ? 'Editar materia' : 'Nueva materia'}</div>
       <div class="form-group"><label class="form-label">Nombre</label><input type="text" class="form-input" id="newSubjectName" placeholder="Ej: Fisica" value="${isEdit ? escapeAttr(s.name) : ''}"></div>
-      <div class="form-group"><label class="form-label">Emoji</label><input type="text" class="form-input" id="newSubjectEmoji" value="${isEdit ? s.emoji : '📚'}" maxlength="2"></div>
+      <div class="form-group">
+        <label class="form-label">Emoji</label>
+        <div id="subjectEmojiPresets" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;">
+          ${SUBJECT_EMOJI_PRESETS.map(e => `<span class="emoji-preset-btn ${e === currentEmoji ? 'selected' : ''}" onclick="selectSubjectEmoji('${e}', this)">${e}</span>`).join('')}
+        </div>
+        <input type="text" class="form-input" id="newSubjectEmoji" value="${currentEmoji}" maxlength="4" placeholder="O pega aqui tu propio emoji">
+      </div>
       <div class="form-group"><label class="form-label">Meta semanal (horas, opcional)</label><input type="number" class="form-input" id="newSubjectGoal" placeholder="Ej: 5" value="${isEdit && s.weekly_goal_hours ? s.weekly_goal_hours : ''}"></div>
       <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="${isEdit ? `updateSubject(${s.id})` : 'addSubject()'}">${isEdit ? 'Guardar' : 'Agregar'}</button></div>`;
   } else if (type === 'subjectNotes') {
