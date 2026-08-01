@@ -716,7 +716,7 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
     </div>
   </div>
 
-  <div class="modal-overlay" id="modal">
+  <div class="modal-overlay" id="modal" onclick="if(event.target === this) closeModal()">
     <div class="modal-content" id="modalContent"></div>
   </div>
 
@@ -1210,9 +1210,9 @@ function computeDailyScore() {
     score += donePct * 50;
   }
   if (appData.workouts.some(w => w.completed)) score += 25;
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const pomoToday = (appData.pomodoro_sessions || []).some(s => (s.date || '').slice(0, 10) === todayStr);
-  if (pomoToday) score += 25;
+  const todayStr = toLocalDateStr(new Date());
+  const studiedToday = (appData.studySessions || []).some(s => !s.is_break && toLocalDateStr(new Date(s.completed_at)) === todayStr);
+  if (studiedToday) score += 25;
   return Math.round(score);
 }
 
@@ -2292,7 +2292,7 @@ function renderExcelView() {
   rows.innerHTML = monthTx.map(t => {
     const dateVal = toLocalDateStr(new Date(t.created_at));
     const cats = getTxCategories(t.type);
-    const catOptions = (cats.includes(t.category) ? cats : [...cats, t.category]).map(c => `<option value="${c}" ${c === t.category ? 'selected' : ''}>${c}</option>`).join('');
+    const catOptions = (cats.includes(t.category) ? cats : [...cats, t.category]).map(c => `<option value="${escapeAttr(c)}" ${c === t.category ? 'selected' : ''}>${c}</option>`).join('');
     return `
     <div class="excel-row">
       <input type="date" value="${dateVal}" onchange="updateTxField(${t.id}, 'date', this.value)">
@@ -2509,7 +2509,8 @@ async function handleCSVImport(event) {
   const file = event.target.files[0];
   event.target.value = ''; // permite volver a elegir el mismo archivo despues
   if (!file) return;
-  const text = await file.text();
+  let text = await file.text();
+  text = text.replace(/^\ufeff/, ''); // quita el BOM si el archivo lo trae (ej. exportado por esta misma app)
   const rows = parseCSVText(text);
   if (rows.length < 1) {
     showToast('El archivo esta vacio', 'error');
@@ -3033,9 +3034,11 @@ async function createTransactionFromRecurring(r) {
 // revisa todas las recurrentes activas: si ya paso su dia del mes y aun no se registro este mes, la crea sola
 async function runRecurringCheck() {
   const now = new Date();
+  const lastDayThisMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
   for (const r of appData.recurringTransactions) {
     if (r.active === false) continue;
-    if (now.getDate() < r.day_of_month) continue;
+    const effectiveDay = Math.min(r.day_of_month, lastDayThisMonth);
+    if (now.getDate() < effectiveDay) continue;
     if (recurringAlreadyLoggedThisMonth(r.id)) continue;
     await createTransactionFromRecurring(r);
     showToast(`Se registro tu recurrente: ${r.name}`, 'info');
