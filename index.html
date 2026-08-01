@@ -2322,10 +2322,11 @@ function updateTxField(id, field, rawValue) {
   } else if (field === 'type') {
     t.type = rawValue;
     t.amount = rawValue === 'income' ? Math.abs(t.amount) : -Math.abs(t.amount);
-    t.icon = rawValue === 'income' ? '💰' : '💳';
+    t.icon = getTxIcon(t.category, rawValue, t.icon);
     t.iconbg = rawValue === 'income' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)';
   } else if (field === 'category') {
     t.category = rawValue;
+    t.icon = getTxIcon(rawValue, t.type, t.icon);
   } else if (field === 'date') {
     if (!rawValue) return;
     t.created_at = dateFromPicker(rawValue).toISOString();
@@ -2541,13 +2542,14 @@ async function handleCSVImport(event) {
       skipped++;
       continue;
     }
+    const category = (categoria || 'Otra').trim() || 'Otra';
     const tx = {
       id: Date.now() + imported + Math.floor(Math.random() * 1000),
       name: nombre.trim(),
-      category: (categoria || 'Otra').trim() || 'Otra',
+      category,
       amount: type === 'income' ? Math.abs(amount) : -Math.abs(amount),
       type,
-      icon: type === 'income' ? '💰' : '💳',
+      icon: getTxIcon(category, type),
       iconbg: type === 'income' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
       created_at: dateFromPicker(fecha.trim()).toISOString(),
       user_id: currentUser?.id
@@ -2927,7 +2929,7 @@ function renderRecurring() {
     const logged = recurringAlreadyLoggedThisMonth(r.id);
     return `
     <div class="transaction-item">
-      <div class="tx-icon" style="background: ${r.type === 'income' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)'};">${r.type === 'income' ? '💰' : '💳'}</div>
+      <div class="tx-icon" style="background: ${r.type === 'income' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)'};">${getTxIcon(r.category, r.type)}</div>
       <div class="tx-info">
         <div class="tx-name">${r.name}</div>
         <div class="tx-category">${r.category} · dia ${r.day_of_month} de cada mes</div>
@@ -3013,7 +3015,7 @@ async function createTransactionFromRecurring(r) {
     id: Date.now() + Math.floor(Math.random() * 1000),
     name: r.name, category: r.category,
     amount: r.type === 'income' ? r.amount : -r.amount,
-    type: r.type, icon: r.type === 'income' ? '💰' : '💳',
+    type: r.type, icon: getTxIcon(r.category, r.type),
     iconbg: r.type === 'income' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
     created_at: txDate.toISOString(),
     recurring_id: r.id,
@@ -3058,6 +3060,20 @@ function getTxCategories(type) {
   return type === 'income'
     ? ['Salario', 'Ingreso extra', 'Freelance', 'Regalo', 'Otra']
     : ['Comida', 'Vivienda', 'Transporte', 'Entretenimiento', 'Salud', 'Educacion', 'Ropa', 'Servicios', 'Otra'];
+}
+
+// emoji por defecto de cada categoria fija de transaccion
+const CATEGORY_EMOJIS = {
+  'Comida': '🍔', 'Vivienda': '🏠', 'Transporte': '🚗', 'Entretenimiento': '🎬',
+  'Salud': '🏥', 'Educacion': '📚', 'Ropa': '👕', 'Servicios': '💡',
+  'Salario': '💼', 'Ingreso extra': '💵', 'Freelance': '💻', 'Regalo': '🎁'
+};
+
+// calcula el icono de una transaccion: por categoria fija, o el personalizado/generico si es "Otra"
+function getTxIcon(category, type, customEmoji) {
+  if (CATEGORY_EMOJIS[category]) return CATEGORY_EMOJIS[category];
+  if (customEmoji && customEmoji.trim()) return customEmoji.trim();
+  return type === 'income' ? '💰' : '💳';
 }
 
 // llena el select de categoria segun el tipo elegido, preseleccionando 'preselect' si se pasa
@@ -3185,6 +3201,8 @@ function openModal(type, editData) {
       <div class="form-group" id="newTxCategoryOtherGroup" style="display:none;">
         <label class="form-label">Especifica la categoria</label>
         <input type="text" class="form-input" id="newTxCategoryOther" placeholder="Ej: Mascotas" value="${isCustomCat ? escapeAttr(t.category) : ''}">
+        <label class="form-label" style="margin-top:8px;">Emoji personalizado (opcional)</label>
+        <input type="text" class="form-input" id="newTxCustomEmoji" maxlength="4" placeholder="Ej: 🐶" value="${isCustomCat && isEdit ? escapeAttr(t.icon || '') : ''}">
       </div>
       <div class="form-group"><label class="form-label">Fecha</label><input type="date" class="form-input" id="newTxDate" value="${dateVal}" max="${todayVal}"></div>
       <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="${isEdit ? `updateTransaction(${t.id})` : 'addTransaction()'}">${isEdit ? 'Guardar' : 'Agregar'}</button></div>`;
@@ -3427,6 +3445,7 @@ async function addTransaction() {
   const amount = parseFloat(document.getElementById('newTxAmount').value);
   const type = document.getElementById('newTxType').value;
   const category = getChosenTxCategory();
+  const customEmoji = document.getElementById('newTxCustomEmoji')?.value;
   const dateVal = document.getElementById('newTxDate').value;
   if (!name || isNaN(amount)) return;
   // usamos la hora actual del dia elegido, para no romper el orden cronologico dentro del mismo dia
@@ -3436,7 +3455,7 @@ async function addTransaction() {
   const tx = {
     id: Date.now(), name, category,
     amount: type === 'income' ? amount : -amount,
-    type, icon: type === 'income' ? '💰' : '💳',
+    type, icon: getTxIcon(category, type, customEmoji),
     iconbg: type === 'income' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
     created_at: chosenDate.toISOString(),
     user_id: currentUser?.id
@@ -3464,6 +3483,7 @@ async function updateTransaction(id) {
   const amount = parseFloat(document.getElementById('newTxAmount').value);
   const type = document.getElementById('newTxType').value;
   const category = getChosenTxCategory();
+  const customEmoji = document.getElementById('newTxCustomEmoji')?.value;
   const dateVal = document.getElementById('newTxDate').value;
   if (!name || isNaN(amount)) return;
   const now = new Date();
@@ -3473,7 +3493,7 @@ async function updateTransaction(id) {
   t.amount = type === 'income' ? amount : -amount;
   t.type = type;
   t.category = category;
-  t.icon = type === 'income' ? '💰' : '💳';
+  t.icon = getTxIcon(category, type, customEmoji);
   t.iconbg = type === 'income' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)';
   t.created_at = chosenDate.toISOString();
   cacheLocal();
