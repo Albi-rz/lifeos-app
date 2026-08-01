@@ -31,6 +31,7 @@
   --radius-sm: 10px;
   --shadow: 0 4px 24px rgba(0,0,0,0.4);
   --shadow-lg: 0 8px 40px rgba(0,0,0,0.5);
+  --header-bg: rgba(10,10,15,0.95);
 }
 [data-theme="light"] {
   --bg: #f4f5f8;
@@ -44,12 +45,13 @@
   --success: #16a34a;
   --shadow: 0 4px 24px rgba(0,0,0,0.06);
   --shadow-lg: 0 8px 32px rgba(0,0,0,0.1);
+  --header-bg: rgba(255,255,255,0.85);
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html { overflow-x: hidden; max-width: 100%; }
 body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
 .lifeos-container { max-width: 1200px; margin: 0 auto; padding: 0; }
-.lifeos-header { padding: 20px 24px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: rgba(10,10,15,0.95); backdrop-filter: blur(20px); z-index: 100; }
+.lifeos-header { padding: 20px 24px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--header-bg); backdrop-filter: blur(20px); z-index: 100; }
 .lifeos-logo { font-size: 22px; font-weight: 700; background: linear-gradient(135deg, var(--accent-primary), #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
 .lifeos-date { font-size: 13px; color: var(--text-muted); font-weight: 500; }
 .lifeos-score { display: flex; align-items: center; gap: 8px; background: var(--surface); padding: 8px 16px; border-radius: 50px; font-size: 14px; font-weight: 600; }
