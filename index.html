@@ -472,6 +472,26 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
       <div id="workoutsList"></div>
       <button class="add-btn" onclick="openModal('workout')">+ Nueva rutina</button>
     </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon" style="background: rgba(245,158,11,0.15); color: var(--accent-exercise);">📈</div>
+          Progreso de pesos
+        </div>
+        <select class="form-select" id="weightProgressExercise" style="max-width:200px; margin-bottom:0;" onchange="renderWeightProgressChart()"></select>
+      </div>
+      <div id="weightProgressEmpty"></div>
+      <div style="height: 200px;"><canvas id="weightProgressChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon" style="background: rgba(245,158,11,0.15); color: var(--accent-exercise);">🗓️</div>
+          Historial de entrenamientos
+        </div>
+      </div>
+      <div id="workoutHistoryList"></div>
+    </div>
   </div>
 
   <div class="lifeos-section" id="study">
@@ -677,7 +697,8 @@ let appData = {
   habitLogs: [],
   recurringTransactions: [],
   savingsGoals: [],
-  gamification: { totalXp: 0 }
+  gamification: { totalXp: 0 },
+  workoutLogs: []
 };
 
 let isOnline = navigator.onLine;
@@ -742,6 +763,7 @@ function toggleTheme() {
   renderChart();
   renderTrendChart();
   renderExpenseChart();
+  renderWeightProgressChart();
 }
 
 function updateThemeButton() {
@@ -816,7 +838,7 @@ async function handleAuth() {
 async function logout() {
   await supabaseClient.auth.signOut();
   currentUser = null;
-  appData = { habits: [], workouts: [], subjects: [], transactions: [], budgets: [], notes: '', pomodoro_sessions: [], habitLogs: [], recurringTransactions: [], savingsGoals: [], gamification: { totalXp: 0 } };
+  appData = { habits: [], workouts: [], subjects: [], transactions: [], budgets: [], notes: '', pomodoro_sessions: [], habitLogs: [], recurringTransactions: [], savingsGoals: [], gamification: { totalXp: 0 }, workoutLogs: [] };
   showAuth();
 }
 
@@ -828,7 +850,7 @@ async function loadData() {
       tenDaysAgo.setDate(tenDaysAgo.getDate() - 9);
       const tenDaysAgoStr = tenDaysAgo.toISOString().slice(0, 10);
 
-      const [habitsRes, workoutsRes, subjectsRes, txRes, budgetsRes, notesRes, logsRes, recurringRes, goalsRes, progressRes] = await Promise.all([
+      const [habitsRes, workoutsRes, subjectsRes, txRes, budgetsRes, notesRes, logsRes, recurringRes, goalsRes, progressRes, workoutLogsRes] = await Promise.all([
         supabaseClient.from('habits').select('*').eq('user_id', currentUser.id),
         supabaseClient.from('workouts').select('*').eq('user_id', currentUser.id),
         supabaseClient.from('subjects').select('*').eq('user_id', currentUser.id),
@@ -838,7 +860,8 @@ async function loadData() {
         supabaseClient.from('habit_logs').select('*').eq('user_id', currentUser.id).gte('log_date', tenDaysAgoStr),
         supabaseClient.from('recurring_transactions').select('*').eq('user_id', currentUser.id),
         supabaseClient.from('savings_goals').select('*').eq('user_id', currentUser.id),
-        supabaseClient.from('user_progress').select('*').eq('user_id', currentUser.id).maybeSingle()
+        supabaseClient.from('user_progress').select('*').eq('user_id', currentUser.id).maybeSingle(),
+        supabaseClient.from('workout_logs').select('*').eq('user_id', currentUser.id).order('completed_at', { ascending: false }).limit(200)
       ]);
       const habits = habitsRes.data || [];
       const workouts = workoutsRes.data || [];
@@ -850,6 +873,7 @@ async function loadData() {
       const recurringTransactions = recurringRes.data || [];
       const savingsGoals = goalsRes.data || [];
       const progress = progressRes.data;
+      const workoutLogs = workoutLogsRes.data || [];
 
       const isBrandNewUser = habits.length === 0 && workouts.length === 0 &&
         subjects.length === 0 && transactions.length === 0 &&
@@ -866,6 +890,7 @@ async function loadData() {
         appData.recurringTransactions = [];
         appData.savingsGoals = [];
         appData.gamification = { totalXp: 0 };
+        appData.workoutLogs = [];
         setTimeout(showWelcomeOnboarding, 400);
       } else {
         appData.habits = habits;
@@ -878,6 +903,7 @@ async function loadData() {
         appData.recurringTransactions = recurringTransactions;
         appData.savingsGoals = savingsGoals;
         appData.gamification = { totalXp: progress ? (progress.total_xp || 0) : 0 };
+        appData.workoutLogs = workoutLogs;
         await checkAndResetDailyHabits();
         await runRecurringCheck();
       }
@@ -899,7 +925,7 @@ function loadFromLocal() {
   if (saved) {
     appData = JSON.parse(saved);
   } else {
-    appData = { habits: [], workouts: [], subjects: [], transactions: [], budgets: [], notes: '', pomodoro_sessions: [], habitLogs: [], recurringTransactions: [], savingsGoals: [], gamification: { totalXp: 0 } };
+    appData = { habits: [], workouts: [], subjects: [], transactions: [], budgets: [], notes: '', pomodoro_sessions: [], habitLogs: [], recurringTransactions: [], savingsGoals: [], gamification: { totalXp: 0 }, workoutLogs: [] };
     setTimeout(showWelcomeOnboarding, 400);
   }
 }
@@ -966,6 +992,7 @@ async function pushAllToSupabase() {
     for (const log of appData.habitLogs) await dbUpsert('habit_logs', log, 'habit_id,log_date');
     for (const rec of appData.recurringTransactions) await dbUpsert('recurring_transactions', rec);
     for (const goal of appData.savingsGoals) await dbUpsert('savings_goals', goal);
+    for (const wl of appData.workoutLogs) await dbUpsert('workout_logs', wl);
     await dbUpsert('user_progress', { total_xp: appData.gamification.totalXp }, 'user_id');
     await dbUpsert('notes', { content: appData.notes }, 'user_id');
     updateSyncStatus(true);
@@ -1001,6 +1028,8 @@ function renderAll() {
   renderCalendar();
   renderHabits();
   renderWorkouts();
+  renderWorkoutHistory();
+  renderWeightProgressChart();
   renderSubjects();
   renderTransactions();
   renderBudgets();
@@ -1421,6 +1450,113 @@ function renderWorkouts() {
   `).join('');
 }
 
+// ---------- historial de entrenamientos y progreso de pesos ----------
+
+// extrae el numero de un texto de peso como "60kg" -> 60. Devuelve null si no hay numero (ej. "Peso corporal")
+function parseWeightValue(weightStr) {
+  if (!weightStr) return null;
+  const match = String(weightStr).match(/[\d.]+/);
+  return match ? parseFloat(match[0]) : null;
+}
+
+function renderWorkoutHistory() {
+  const list = document.getElementById('workoutHistoryList');
+  if (!list) return;
+  if (appData.workoutLogs.length === 0) {
+    list.innerHTML = emptyState('🗓️', 'Aún no completaste ninguna rutina. Tu historial aparecerá aquí.');
+    return;
+  }
+  const recent = appData.workoutLogs.slice(0, 15);
+  list.innerHTML = recent.map(l => {
+    const date = new Date(l.completed_at).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' });
+    const exSummary = l.exercises.map(e => `${e.name} (${e.weight})`).join(', ');
+    return `
+      <div class="transaction-item" style="align-items:flex-start;">
+        <div class="tx-icon" style="background: rgba(245,158,11,0.15);">💪</div>
+        <div class="tx-info">
+          <div class="tx-name">${l.workout_name}</div>
+          <div class="tx-category" style="white-space:normal;">${exSummary}</div>
+        </div>
+        <div style="font-size:11px; color:var(--text-muted); white-space:nowrap;">${date}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function populateWeightProgressExercises() {
+  const select = document.getElementById('weightProgressExercise');
+  if (!select) return;
+  const names = new Set();
+  appData.workoutLogs.forEach(l => l.exercises.forEach(e => {
+    if (parseWeightValue(e.weight) !== null) names.add(e.name);
+  }));
+  const current = select.value;
+  const sorted = [...names].sort();
+  select.innerHTML = sorted.length === 0
+    ? '<option value="">Sin datos aun</option>'
+    : sorted.map(n => `<option value="${n}" ${n === current ? 'selected' : ''}>${n}</option>`).join('');
+}
+
+let weightProgressChartInstance = null;
+function renderWeightProgressChart() {
+  populateWeightProgressExercises();
+  const select = document.getElementById('weightProgressExercise');
+  const canvas = document.getElementById('weightProgressChart');
+  const emptyEl = document.getElementById('weightProgressEmpty');
+  if (!select || !canvas) return;
+  const exerciseName = select.value;
+
+  const points = appData.workoutLogs
+    .filter(l => l.exercises.some(e => e.name === exerciseName))
+    .map(l => {
+      const ex = l.exercises.find(e => e.name === exerciseName);
+      return { date: new Date(l.completed_at), weight: parseWeightValue(ex.weight) };
+    })
+    .filter(p => p.weight !== null)
+    .sort((a, b) => a.date - b.date);
+
+  if (weightProgressChartInstance) weightProgressChartInstance.destroy();
+
+  if (!exerciseName || points.length === 0) {
+    canvas.style.display = 'none';
+    emptyEl.style.display = 'block';
+    emptyEl.innerHTML = emptyState('📈', 'Completa rutinas con pesos numericos (ej. "60kg") para ver tu progreso aca.');
+    return;
+  }
+  canvas.style.display = 'block';
+  emptyEl.style.display = 'none';
+
+  weightProgressChartInstance = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels: points.map(p => p.date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })),
+      datasets: [{
+        label: exerciseName,
+        data: points.map(p => p.weight),
+        borderColor: '#f59e0b',
+        backgroundColor: 'rgba(245,158,11,0.12)',
+        borderWidth: 3,
+        fill: true,
+        tension: 0.3,
+        pointBackgroundColor: '#f59e0b',
+        pointRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: (ctx) => ` ${ctx.parsed.y} kg` } }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: chartTextColor(), font: { size: 10 } } },
+        y: { grid: { color: chartGridColor() }, ticks: { color: chartTextColor(), font: { size: 10 } } }
+      }
+    }
+  });
+}
+
 async function deleteExercise(workoutId, exerciseIndex) {
   const w = appData.workouts.find(x => x.id === workoutId);
   if (!w) return;
@@ -1463,6 +1599,33 @@ async function toggleWorkout(id) {
     showToast(w.completed ? `${w.name} completado!` : 'Rutina desmarcada', w.completed ? 'success' : undefined);
     await dbUpsert('workouts', w);
     await addXp(w.completed ? 25 : -25);
+
+    if (w.completed) {
+      const log = {
+        id: Date.now() + Math.floor(Math.random() * 1000),
+        workout_id: w.id,
+        workout_name: w.name,
+        completed_at: new Date().toISOString(),
+        exercises: JSON.parse(JSON.stringify(w.exercises)),
+        user_id: currentUser?.id
+      };
+      appData.workoutLogs.unshift(log);
+      cacheLocal();
+      renderWorkoutHistory();
+      renderWeightProgressChart();
+      await dbUpsert('workout_logs', log);
+    } else {
+      // si desmarcas, borramos el registro de HOY para esta rutina (evita duplicados si te equivocaste)
+      const todayStr = toLocalDateStr(new Date());
+      const todaysLog = appData.workoutLogs.find(l => l.workout_id === id && toLocalDateStr(new Date(l.completed_at)) === todayStr);
+      if (todaysLog) {
+        appData.workoutLogs = appData.workoutLogs.filter(l => l.id !== todaysLog.id);
+        cacheLocal();
+        renderWorkoutHistory();
+        renderWeightProgressChart();
+        await dbDelete('workout_logs', { id: todaysLog.id });
+      }
+    }
   }
 }
 
@@ -1482,6 +1645,24 @@ async function deleteWorkout(id) {
 let timerInterval = null;
 let timerSeconds = 45;
 let timerRunning = false;
+
+// pequeno beep sin necesidad de archivos de audio externos, para avisar que termino el descanso
+function playBeep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.4);
+  } catch (e) {
+    // si el navegador bloquea audio sin interaccion previa, simplemente no suena
+  }
+}
 
 function formatTime(sec) {
   const m = Math.floor(sec / 60).toString().padStart(2, '0');
@@ -1514,6 +1695,8 @@ function toggleTimer() {
         btn.textContent = 'Iniciar';
         btn.className = 'timer-btn start';
         showToast('Descanso terminado!', 'success');
+        playBeep();
+        if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
         timerSeconds = 45;
         document.getElementById('restTimer').textContent = '00:45';
       }
