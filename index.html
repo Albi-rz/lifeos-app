@@ -1260,8 +1260,14 @@ function renderNextSteps() {
   if (undone.length > 0) steps.push({ text: undone[0].name, icon: '🌱', color: '#10b981' });
   const uncompleted = appData.workouts.filter(w => !w.completed);
   if (uncompleted.length > 0) steps.push({ text: uncompleted[0].name, icon: '🏋️', color: '#f59e0b' });
-  steps.push({ text: 'Sesion de estudio de 25 min', icon: '📚', color: '#3b82f6' });
+  const todayStr = toLocalDateStr(new Date());
+  const studiedToday = (appData.studySessions || []).some(s => !s.is_break && toLocalDateStr(new Date(s.completed_at)) === todayStr);
+  if (!studiedToday) steps.push({ text: 'Sesion de estudio de 25 min', icon: '📚', color: '#3b82f6' });
   const container = document.getElementById('nextSteps');
+  if (steps.length === 0) {
+    container.innerHTML = `<div class="mini-item"><span class="mini-text" style="color:var(--text-muted);">¡Ya completaste todo por hoy! 🎉</span></div>`;
+    return;
+  }
   container.innerHTML = steps.map(s => `
     <div class="mini-item">
       <div class="mini-dot" style="background: ${s.color};"></div>
