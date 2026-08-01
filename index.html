@@ -517,6 +517,9 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
           <button class="timer-btn start" id="pomoStartBtn" onclick="togglePomodoro()">Iniciar</button>
           <button class="timer-btn pause" onclick="resetPomodoro()">Reiniciar</button>
         </div>
+        <select class="form-select" id="pomoSubjectSelect" style="margin-top:12px; margin-bottom:0;">
+          <option value="">Sin materia especifica</option>
+        </select>
       </div>
     </div>
     <div class="card">
@@ -913,6 +916,7 @@ async function loadData() {
         appData.workoutLogs = workoutLogs;
         await checkAndResetDailyHabits();
         await checkAndResetDailyWorkouts();
+        await checkAndResetWeeklyStudyHours();
         await runRecurringCheck();
       }
       cacheLocal();
@@ -1791,6 +1795,7 @@ function togglePomodoro() {
         appData.pomodoro_sessions.push({ date: new Date().toISOString(), duration: pomoTotal / 60 });
         cacheLocal();
         addXp(15);
+        addPomodoroHoursToSubject();
       }
     }, 1000);
   }
@@ -1809,20 +1814,74 @@ function resetPomodoro() {
   document.getElementById('pomoStartBtn').className = 'timer-btn start';
 }
 
+// llena el selector de materia del Pomodoro con las materias actuales
+function populatePomoSubjectSelect() {
+  const select = document.getElementById('pomoSubjectSelect');
+  if (!select) return;
+  const current = select.value;
+  select.innerHTML = '<option value="">Sin materia especifica</option>' +
+    appData.subjects.map(s => `<option value="${s.id}" ${String(s.id) === current ? 'selected' : ''}>${s.emoji} ${s.name}</option>`).join('');
+}
+
+// si la sesion completada era de estudio (no un descanso) y hay una materia elegida, le suma las horas
+async function addPomodoroHoursToSubject() {
+  const activeMode = document.querySelector('.pomodoro-mode.active');
+  const isBreak = activeMode && !activeMode.textContent.includes('Pomodoro');
+  if (isBreak) return;
+  const subjectId = parseInt(document.getElementById('pomoSubjectSelect')?.value);
+  if (!subjectId) return;
+  const s = appData.subjects.find(x => x.id === subjectId);
+  if (!s) return;
+  s.hours = Math.round((s.hours + pomoTotal / 3600) * 100) / 100;
+  cacheLocal();
+  renderSubjects();
+  await dbUpsert('subjects', s);
+}
+
+// calcula el lunes de la semana de una fecha, en formato YYYY-MM-DD (para saber si ya toca reiniciar la meta semanal)
+function getWeekStartStr(date) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = (day === 0 ? -6 : 1) - day;
+  d.setDate(d.getDate() + diff);
+  return toLocalDateStr(d);
+}
+
+// si empezo una nueva semana desde la ultima vez, reinicia las horas de estudio de cada materia
+async function checkAndResetWeeklyStudyHours() {
+  const currentWeekStart = getWeekStartStr(new Date());
+  for (const s of appData.subjects) {
+    if (s.week_start !== currentWeekStart) {
+      s.hours = 0;
+      s.week_start = currentWeekStart;
+      await dbUpsert('subjects', s);
+    }
+  }
+  cacheLocal();
+}
+
 function renderSubjects() {
   const grid = document.getElementById('subjectsGrid');
   if (appData.subjects.length === 0) {
     grid.innerHTML = emptyState('📚', 'Aún no tienes materias. Agrega la primera con el botón de abajo.');
+    populatePomoSubjectSelect();
     return;
   }
-  grid.innerHTML = appData.subjects.map(s => `
+  grid.innerHTML = appData.subjects.map(s => {
+    const goal = s.weekly_goal_hours || 0;
+    const pct = goal > 0 ? Math.min(100, Math.round((s.hours / goal) * 100)) : 0;
+    return `
     <div class="subject-card" style="position:relative;">
+      <span class="delete-icon" style="position:absolute; top:6px; right:30px;" onclick="event.stopPropagation(); editSubject(${s.id})" title="Editar">✏️</span>
       <span class="delete-icon" style="position:absolute; top:6px; right:6px;" onclick="event.stopPropagation(); deleteSubject(${s.id})" title="Eliminar">🗑</span>
       <div class="subject-emoji">${s.emoji}</div>
       <div class="subject-name">${s.name}</div>
-      <div class="subject-hours">${s.hours}h esta semana</div>
+      <div class="subject-hours">${s.hours.toFixed(1)}h${goal > 0 ? ' / ' + goal + 'h' : ''} esta semana</div>
+      ${goal > 0 ? `<div class="budget-track" style="margin-top:8px;"><div class="budget-fill" style="width:${pct}%; background: var(--accent-study);"></div></div>` : ''}
     </div>
-  `).join('');
+  `;
+  }).join('');
+  populatePomoSubjectSelect();
 }
 
 let notesSaveTimeout = null;
@@ -2810,10 +2869,13 @@ function openModal(type, editData) {
       <div class="form-group"><label class="form-label">Duracion (min)</label><input type="number" class="form-input" id="newWorkoutDuration" value="45"></div>
       <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="addWorkout()">Crear</button></div>`;
   } else if (type === 'subject') {
-    html = `<div class="modal-title">Nueva materia</div>
-      <div class="form-group"><label class="form-label">Nombre</label><input type="text" class="form-input" id="newSubjectName" placeholder="Ej: Fisica"></div>
-      <div class="form-group"><label class="form-label">Emoji</label><input type="text" class="form-input" id="newSubjectEmoji" value="📚" maxlength="2"></div>
-      <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="addSubject()">Agregar</button></div>`;
+    const isEdit = !!editData;
+    const s = editData || {};
+    html = `<div class="modal-title">${isEdit ? 'Editar materia' : 'Nueva materia'}</div>
+      <div class="form-group"><label class="form-label">Nombre</label><input type="text" class="form-input" id="newSubjectName" placeholder="Ej: Fisica" value="${isEdit ? escapeAttr(s.name) : ''}"></div>
+      <div class="form-group"><label class="form-label">Emoji</label><input type="text" class="form-input" id="newSubjectEmoji" value="${isEdit ? s.emoji : '📚'}" maxlength="2"></div>
+      <div class="form-group"><label class="form-label">Meta semanal (horas, opcional)</label><input type="number" class="form-input" id="newSubjectGoal" placeholder="Ej: 5" value="${isEdit && s.weekly_goal_hours ? s.weekly_goal_hours : ''}"></div>
+      <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="${isEdit ? `updateSubject(${s.id})` : 'addSubject()'}">${isEdit ? 'Guardar' : 'Agregar'}</button></div>`;
   } else if (type === 'transaction') {
     const isEdit = !!editData;
     const todayVal = new Date().toISOString().slice(0, 10);
@@ -2971,14 +3033,37 @@ async function addWorkout() {
 async function addSubject() {
   const name = document.getElementById('newSubjectName').value.trim();
   const emoji = document.getElementById('newSubjectEmoji').value || '📚';
+  const goal = parseFloat(document.getElementById('newSubjectGoal').value) || 0;
   if (!name) return;
-  const subject = { id: Date.now(), name, emoji, hours: 0, user_id: currentUser?.id };
+  const subject = { id: Date.now(), name, emoji, hours: 0, weekly_goal_hours: goal, week_start: getWeekStartStr(new Date()), user_id: currentUser?.id };
   appData.subjects.push(subject);
   cacheLocal();
   closeModal();
   renderSubjects();
   showToast('Materia agregada', 'success');
   await dbUpsert('subjects', subject);
+}
+
+function editSubject(id) {
+  const s = appData.subjects.find(x => x.id === id);
+  if (s) openModal('subject', s);
+}
+
+async function updateSubject(id) {
+  const s = appData.subjects.find(x => x.id === id);
+  if (!s) return;
+  const name = document.getElementById('newSubjectName').value.trim();
+  const emoji = document.getElementById('newSubjectEmoji').value || '📚';
+  const goal = parseFloat(document.getElementById('newSubjectGoal').value) || 0;
+  if (!name) return;
+  s.name = name;
+  s.emoji = emoji;
+  s.weekly_goal_hours = goal;
+  cacheLocal();
+  closeModal();
+  renderSubjects();
+  showToast('Materia actualizada', 'success');
+  await dbUpsert('subjects', s);
 }
 
 async function deleteSubject(id) {
