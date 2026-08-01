@@ -503,9 +503,15 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
 
   <div class="lifeos-section" id="study">
     <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon" style="background: rgba(59,130,246,0.15); color: var(--accent-study);">⏱️</div>
+          Temporizador de estudio
+        </div>
+      </div>
       <div class="pomodoro-container">
         <div class="pomodoro-modes">
-          <button class="pomodoro-mode active" onclick="setPomodoro(25, this)">Pomodoro</button>
+          <button class="pomodoro-mode active" onclick="setPomodoro(25, this)">Estudio</button>
           <button class="pomodoro-mode" onclick="setPomodoro(5, this)">Descanso corto</button>
           <button class="pomodoro-mode" onclick="setPomodoro(15, this)">Descanso largo</button>
         </div>
@@ -542,7 +548,7 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
       <div class="card-header">
         <div class="card-title">
           <div class="card-icon" style="background: rgba(59,130,246,0.15); color: var(--accent-study);">📝</div>
-          Notas rapidas
+          Notas generales
         </div>
       </div>
       <textarea class="form-input" id="quickNotes" rows="4" placeholder="Escribe tus notas aqui..." style="resize: vertical;" oninput="saveNotes()"></textarea>
@@ -1186,7 +1192,7 @@ function renderNextSteps() {
   if (undone.length > 0) steps.push({ text: undone[0].name, icon: '🌱', color: '#10b981' });
   const uncompleted = appData.workouts.filter(w => !w.completed);
   if (uncompleted.length > 0) steps.push({ text: uncompleted[0].name, icon: '🏋️', color: '#f59e0b' });
-  steps.push({ text: 'Pomodoro de 25 min', icon: '📚', color: '#3b82f6' });
+  steps.push({ text: 'Sesion de estudio de 25 min', icon: '📚', color: '#3b82f6' });
   const container = document.getElementById('nextSteps');
   container.innerHTML = steps.map(s => `
     <div class="mini-item">
@@ -1856,7 +1862,7 @@ function populatePomoSubjectSelect() {
 // si la sesion completada era de estudio (no un descanso) y hay una materia elegida, le suma las horas
 async function addPomodoroHoursToSubject() {
   const activeMode = document.querySelector('.pomodoro-mode.active');
-  const isBreak = activeMode && !activeMode.textContent.includes('Pomodoro');
+  const isBreak = activeMode && !activeMode.textContent.includes('Estudio');
   if (isBreak) return;
   const subjectId = parseInt(document.getElementById('pomoSubjectSelect')?.value);
   if (!subjectId) return;
@@ -1901,9 +1907,10 @@ function renderSubjects() {
     const goal = s.weekly_goal_hours || 0;
     const pct = goal > 0 ? Math.min(100, Math.round((s.hours / goal) * 100)) : 0;
     return `
-    <div class="subject-card" style="position:relative;">
+    <div class="subject-card" style="position:relative; cursor:pointer;" onclick="openSubjectNotes(${s.id})">
       <span class="delete-icon" style="position:absolute; top:6px; right:30px;" onclick="event.stopPropagation(); editSubject(${s.id})" title="Editar">✏️</span>
       <span class="delete-icon" style="position:absolute; top:6px; right:6px;" onclick="event.stopPropagation(); deleteSubject(${s.id})" title="Eliminar">🗑</span>
+      ${s.notes ? `<span style="position:absolute; top:6px; left:6px; font-size:12px;" title="Tiene notas">📝</span>` : ''}
       <div class="subject-emoji">${s.emoji}</div>
       <div class="subject-name">${s.name}</div>
       <div class="subject-hours">${s.hours.toFixed(1)}h${goal > 0 ? ' / ' + goal + 'h' : ''} esta semana</div>
@@ -2906,6 +2913,10 @@ function openModal(type, editData) {
       <div class="form-group"><label class="form-label">Emoji</label><input type="text" class="form-input" id="newSubjectEmoji" value="${isEdit ? s.emoji : '📚'}" maxlength="2"></div>
       <div class="form-group"><label class="form-label">Meta semanal (horas, opcional)</label><input type="number" class="form-input" id="newSubjectGoal" placeholder="Ej: 5" value="${isEdit && s.weekly_goal_hours ? s.weekly_goal_hours : ''}"></div>
       <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="${isEdit ? `updateSubject(${s.id})` : 'addSubject()'}">${isEdit ? 'Guardar' : 'Agregar'}</button></div>`;
+  } else if (type === 'subjectNotes') {
+    html = `<div class="modal-title">${editData.emoji} Notas de ${escapeAttr(editData.name)}</div>
+      <textarea class="form-input" id="subjectNotesText" rows="8" placeholder="Escribe tus notas de esta materia aqui..." style="resize:vertical;">${editData.notes ? editData.notes.replace(/</g, '&lt;') : ''}</textarea>
+      <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cerrar</button><button class="btn btn-primary" onclick="saveSubjectNotes(${editData.id})">Guardar</button></div>`;
   } else if (type === 'transaction') {
     const isEdit = !!editData;
     const todayVal = new Date().toISOString().slice(0, 10);
@@ -2999,7 +3010,7 @@ function openModal(type, editData) {
         </div>
         <div style="display:flex; gap:12px; align-items:flex-start; background:var(--bg); padding:12px; border-radius:12px;">
           <div style="font-size:22px;">📚</div>
-          <div><div style="font-weight:600; font-size:14px;">Estudios</div><div style="font-size:12px; color:var(--text-muted);">Agrega tus materias y usa el Pomodoro para enfocarte.</div></div>
+          <div><div style="font-weight:600; font-size:14px;">Estudios</div><div style="font-size:12px; color:var(--text-muted);">Agrega tus materias y usa el temporizador de estudio para enfocarte.</div></div>
         </div>
         <div style="display:flex; gap:12px; align-items:flex-start; background:var(--bg); padding:12px; border-radius:12px;">
           <div style="font-size:22px;">💰</div>
@@ -3065,7 +3076,7 @@ async function addSubject() {
   const emoji = document.getElementById('newSubjectEmoji').value || '📚';
   const goal = parseFloat(document.getElementById('newSubjectGoal').value) || 0;
   if (!name) return;
-  const subject = { id: Date.now(), name, emoji, hours: 0, weekly_goal_hours: goal, week_start: getWeekStartStr(new Date()), user_id: currentUser?.id };
+  const subject = { id: Date.now(), name, emoji, hours: 0, weekly_goal_hours: goal, week_start: getWeekStartStr(new Date()), notes: '', user_id: currentUser?.id };
   appData.subjects.push(subject);
   cacheLocal();
   closeModal();
@@ -3077,6 +3088,22 @@ async function addSubject() {
 function editSubject(id) {
   const s = appData.subjects.find(x => x.id === id);
   if (s) openModal('subject', s);
+}
+
+function openSubjectNotes(id) {
+  const s = appData.subjects.find(x => x.id === id);
+  if (s) openModal('subjectNotes', s);
+}
+
+async function saveSubjectNotes(id) {
+  const s = appData.subjects.find(x => x.id === id);
+  if (!s) return;
+  s.notes = document.getElementById('subjectNotesText').value;
+  cacheLocal();
+  closeModal();
+  renderSubjects();
+  showToast('Notas guardadas', 'success');
+  await dbUpsert('subjects', s);
 }
 
 async function updateSubject(id) {
