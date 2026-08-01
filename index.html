@@ -475,9 +475,9 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
         <button class="timer-btn reset" onclick="setTimer(120)">2m</button>
       </div>
       <div style="display:flex; gap:8px; align-items:center; justify-content:center; margin-top:14px; flex-wrap:wrap;">
-        <input type="number" id="customTimerMin" min="0" max="59" placeholder="Min" class="form-input" style="width:70px; margin-bottom:0; text-align:center;">
+        <input type="number" inputmode="decimal" id="customTimerMin" min="0" max="59" placeholder="Min" class="form-input" style="width:70px; margin-bottom:0; text-align:center;">
         <span style="color:var(--text-muted);">:</span>
-        <input type="number" id="customTimerSec" min="0" max="59" placeholder="Seg" class="form-input" style="width:70px; margin-bottom:0; text-align:center;">
+        <input type="number" inputmode="decimal" id="customTimerSec" min="0" max="59" placeholder="Seg" class="form-input" style="width:70px; margin-bottom:0; text-align:center;">
         <button class="btn btn-secondary" style="padding:8px 14px; font-size:13px;" onclick="setCustomTimer()">Usar tiempo personalizado</button>
       </div>
     </div>
@@ -537,9 +537,9 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
           <button class="timer-btn pause" onclick="resetPomodoro()">Reiniciar</button>
         </div>
         <div style="display:flex; gap:8px; align-items:center; justify-content:center; margin-top:12px; flex-wrap:wrap;">
-          <input type="number" id="customPomoMin" min="0" max="180" placeholder="Min" class="form-input" style="width:70px; margin-bottom:0; text-align:center;">
+          <input type="number" inputmode="decimal" id="customPomoMin" min="0" max="180" placeholder="Min" class="form-input" style="width:70px; margin-bottom:0; text-align:center;">
           <span style="color:var(--text-muted);">:</span>
-          <input type="number" id="customPomoSec" min="0" max="59" placeholder="Seg" class="form-input" style="width:70px; margin-bottom:0; text-align:center;">
+          <input type="number" inputmode="decimal" id="customPomoSec" min="0" max="59" placeholder="Seg" class="form-input" style="width:70px; margin-bottom:0; text-align:center;">
           <button class="btn btn-secondary" style="padding:8px 14px; font-size:13px;" onclick="setCustomPomodoro()">Usar tiempo personalizado</button>
         </div>
         <select class="form-select" id="pomoSubjectSelect" style="margin-top:12px; margin-bottom:0;">
@@ -605,10 +605,10 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
         <option value="3">3er trimestre (Jul-Sep)</option>
         <option value="4">4to trimestre (Oct-Dic)</option>
       </select>
-      <input type="number" id="quarterYearPicker" class="form-input" style="margin-bottom:0; max-width:100px;" onchange="applyQuarterRange()">
+      <input type="number" inputmode="decimal" id="quarterYearPicker" class="form-input" style="margin-bottom:0; max-width:100px;" onchange="applyQuarterRange()">
     </div>
     <div id="yearRangeInputs" style="display:none; gap:8px; margin: 0 0 16px 0;">
-      <input type="number" id="yearRangePicker" class="form-input" style="margin-bottom:0; max-width:120px;" onchange="applyYearRange()">
+      <input type="number" inputmode="decimal" id="yearRangePicker" class="form-input" style="margin-bottom:0; max-width:120px;" onchange="applyYearRange()">
     </div>
     <div id="customRangeInputs" style="display:none; gap:8px; margin: 0 0 16px 0;">
       <input type="date" id="customRangeStart" class="form-input" style="margin-bottom:0;" onchange="applyCustomRange()">
@@ -809,6 +809,20 @@ function showApp() {
 }
 
 // ---------- tema claro/oscuro ----------
+// evita que se puedan escribir letras en CUALQUIER campo numerico de la app, sin tener que
+// tocar cada input por separado (algunos navegadores/teclados moviles dejan pasar letras
+// en <input type="number" inputmode="decimal"> a pesar de que no deberian)
+document.addEventListener('input', (e) => {
+  if (e.target.tagName === 'INPUT' && e.target.type === 'number') {
+    const original = e.target.value;
+    let cleaned = original.replace(/[^0-9.\-]/g, '');
+    const parts = cleaned.split('.');
+    if (parts.length > 2) cleaned = parts[0] + '.' + parts.slice(1).join('');
+    if (cleaned.indexOf('-') > 0) cleaned = cleaned.replace(/-/g, '');
+    if (cleaned !== original) e.target.value = cleaned;
+  }
+});
+
 function toggleTheme() {
   const current = document.documentElement.getAttribute('data-theme') || 'dark';
   const next = current === 'dark' ? 'light' : 'dark';
@@ -2325,7 +2339,7 @@ function renderExcelView() {
         <option value="expense" ${t.type === 'expense' ? 'selected' : ''}>Gasto</option>
         <option value="income" ${t.type === 'income' ? 'selected' : ''}>Ingreso</option>
       </select>
-      <input type="number" class="excel-amount ${t.type}" value="${Math.abs(t.amount)}" onchange="updateTxField(${t.id}, 'amount', this.value)">
+      <input type="number" inputmode="decimal" class="excel-amount ${t.type}" value="${Math.abs(t.amount)}" onchange="updateTxField(${t.id}, 'amount', this.value)">
       <span class="delete-icon" onclick="deleteTransaction(${t.id})" title="Eliminar">🗑</span>
     </div>
   `;
@@ -3174,7 +3188,7 @@ function openModal(type, editData) {
   } else if (type === 'workout') {
     html = `<div class="modal-title">Nueva rutina</div>
       <div class="form-group"><label class="form-label">Nombre</label><input type="text" class="form-input" id="newWorkoutName" placeholder="Ej: Full Body"></div>
-      <div class="form-group"><label class="form-label">Duracion (min)</label><input type="number" class="form-input" id="newWorkoutDuration" value="45"></div>
+      <div class="form-group"><label class="form-label">Duracion (min)</label><input type="number" inputmode="decimal" class="form-input" id="newWorkoutDuration" value="45"></div>
       <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="addWorkout()">Crear</button></div>`;
   } else if (type === 'subject') {
     const isEdit = !!editData;
@@ -3189,7 +3203,7 @@ function openModal(type, editData) {
         </div>
         <input type="text" class="form-input" id="newSubjectEmoji" value="${currentEmoji}" maxlength="4" placeholder="O pega aqui tu propio emoji">
       </div>
-      <div class="form-group"><label class="form-label">Meta semanal (horas, opcional)</label><input type="number" class="form-input" id="newSubjectGoal" placeholder="Ej: 5" value="${isEdit && s.weekly_goal_hours ? s.weekly_goal_hours : ''}"></div>
+      <div class="form-group"><label class="form-label">Meta semanal (horas, opcional)</label><input type="number" inputmode="decimal" class="form-input" id="newSubjectGoal" placeholder="Ej: 5" value="${isEdit && s.weekly_goal_hours ? s.weekly_goal_hours : ''}"></div>
       <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="${isEdit ? `updateSubject(${s.id})` : 'addSubject()'}">${isEdit ? 'Guardar' : 'Agregar'}</button></div>`;
   } else if (type === 'subjectNotes') {
     html = `<div class="modal-title">${editData.emoji} Notas de ${escapeAttr(editData.name)}</div>
@@ -3216,7 +3230,7 @@ function openModal(type, editData) {
     const isCustomCat = t.category && !getTxCategories(type_).includes(t.category);
     html = `<div class="modal-title">${isEdit ? 'Editar transaccion' : 'Nueva transaccion'}</div>
       <div class="form-group"><label class="form-label">Nombre</label><input type="text" class="form-input" id="newTxName" placeholder="Ej: Cena" value="${isEdit ? escapeAttr(t.name) : ''}"></div>
-      <div class="form-group"><label class="form-label">Monto</label><input type="number" class="form-input" id="newTxAmount" placeholder="0" value="${isEdit ? Math.abs(t.amount) : ''}"></div>
+      <div class="form-group"><label class="form-label">Monto</label><input type="number" inputmode="decimal" class="form-input" id="newTxAmount" placeholder="0" value="${isEdit ? Math.abs(t.amount) : ''}"></div>
       <div class="form-group"><label class="form-label">Tipo</label><select class="form-select" id="newTxType" onchange="populateTxCategoryOptions()">
         <option value="expense" ${type_ === 'expense' ? 'selected' : ''}>Gasto</option>
         <option value="income" ${type_ === 'income' ? 'selected' : ''}>Ingreso</option>
@@ -3242,7 +3256,7 @@ function openModal(type, editData) {
           ? `<input type="text" class="form-input" id="newBudgetCategory" value="${escapeAttr(editData.category)}" disabled>`
           : `<select class="form-select" id="newBudgetCategory">${expenseCats.map(c => `<option value="${c}">${c}</option>`).join('')}</select>`}
       </div>
-      <div class="form-group"><label class="form-label">Limite mensual</label><input type="number" class="form-input" id="newBudgetLimit" placeholder="0" value="${isEdit ? editData.budget_limit : ''}"></div>
+      <div class="form-group"><label class="form-label">Limite mensual</label><input type="number" inputmode="decimal" class="form-input" id="newBudgetLimit" placeholder="0" value="${isEdit ? editData.budget_limit : ''}"></div>
       <div class="form-group"><label class="form-label">Color</label>
         <select class="form-select" id="newBudgetColor">
           ${colors.map(c => `<option value="${c}" ${isEdit && editData.color === c ? 'selected' : ''} style="background:${c};">${c}</option>`).join('')}
@@ -3254,20 +3268,20 @@ function openModal(type, editData) {
     const r = editData || {};
     html = `<div class="modal-title">${isEdit ? 'Editar recurrente' : 'Nueva transaccion recurrente'}</div>
       <div class="form-group"><label class="form-label">Nombre</label><input type="text" class="form-input" id="newRecName" placeholder="Ej: Alquiler" value="${isEdit ? escapeAttr(r.name) : ''}"></div>
-      <div class="form-group"><label class="form-label">Monto</label><input type="number" class="form-input" id="newRecAmount" placeholder="0" value="${isEdit ? Math.abs(r.amount) : ''}"></div>
+      <div class="form-group"><label class="form-label">Monto</label><input type="number" inputmode="decimal" class="form-input" id="newRecAmount" placeholder="0" value="${isEdit ? Math.abs(r.amount) : ''}"></div>
       <div class="form-group"><label class="form-label">Tipo</label><select class="form-select" id="newRecType" onchange="populateRecCategoryOptions()">
         <option value="expense" ${(!isEdit || r.type === 'expense') ? 'selected' : ''}>Gasto</option>
         <option value="income" ${isEdit && r.type === 'income' ? 'selected' : ''}>Ingreso</option>
       </select></div>
       <div class="form-group"><label class="form-label">Categoria</label><select class="form-select" id="newRecCategory"></select></div>
-      <div class="form-group"><label class="form-label">Dia del mes</label><input type="number" class="form-input" id="newRecDay" min="1" max="28" value="${isEdit ? r.day_of_month : 1}"></div>
+      <div class="form-group"><label class="form-label">Dia del mes</label><input type="number" inputmode="decimal" class="form-input" id="newRecDay" min="1" max="28" value="${isEdit ? r.day_of_month : 1}"></div>
       <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="${isEdit ? `updateRecurring(${r.id})` : 'addRecurring()'}">${isEdit ? 'Guardar' : 'Crear'}</button></div>`;
   } else if (type === 'savingsGoal') {
     const colors = ['#6366f1', '#10b981', '#f59e0b', '#3b82f6', '#ec4899', '#8b5cf6'];
     html = `<div class="modal-title">Nueva meta de ahorro</div>
       <div class="form-group"><label class="form-label">Nombre</label><input type="text" class="form-input" id="newGoalName" placeholder="Ej: Viaje a Cusco"></div>
-      <div class="form-group"><label class="form-label">Monto objetivo</label><input type="number" class="form-input" id="newGoalTarget" placeholder="0"></div>
-      <div class="form-group"><label class="form-label">Ya tengo ahorrado (opcional)</label><input type="number" class="form-input" id="newGoalCurrent" placeholder="0" value="0"></div>
+      <div class="form-group"><label class="form-label">Monto objetivo</label><input type="number" inputmode="decimal" class="form-input" id="newGoalTarget" placeholder="0"></div>
+      <div class="form-group"><label class="form-label">Ya tengo ahorrado (opcional)</label><input type="number" inputmode="decimal" class="form-input" id="newGoalCurrent" placeholder="0" value="0"></div>
       <div class="form-group"><label class="form-label">Fecha limite (opcional)</label><input type="date" class="form-input" id="newGoalDate"></div>
       <div class="form-group"><label class="form-label">Color</label>
         <select class="form-select" id="newGoalColor">${colors.map(c => `<option value="${c}" style="background:${c};">${c}</option>`).join('')}</select>
@@ -3275,7 +3289,7 @@ function openModal(type, editData) {
       <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="addSavingsGoal()">Crear</button></div>`;
   } else if (type === 'addToGoal') {
     html = `<div class="modal-title">Agregar a "${escapeAttr(editData.name)}"</div>
-      <div class="form-group"><label class="form-label">Monto a agregar</label><input type="number" class="form-input" id="addGoalAmount" placeholder="0"></div>
+      <div class="form-group"><label class="form-label">Monto a agregar</label><input type="number" inputmode="decimal" class="form-input" id="addGoalAmount" placeholder="0"></div>
       <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="addToGoal(${editData.id})">Agregar</button></div>`;
   } else if (type === 'exercise') {
     html = `<div class="modal-title">Nuevo ejercicio</div>
