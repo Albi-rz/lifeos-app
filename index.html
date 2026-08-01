@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
 <title>LifeOS - Tu Sistema de Crecimiento</title>
 <script>
   // se aplica de inmediato, antes de pintar, para evitar el parpadeo del tema incorrecto
@@ -905,6 +906,7 @@ async function loadData() {
         appData.gamification = { totalXp: progress ? (progress.total_xp || 0) : 0 };
         appData.workoutLogs = workoutLogs;
         await checkAndResetDailyHabits();
+        await checkAndResetDailyWorkouts();
         await runRecurringCheck();
       }
       cacheLocal();
@@ -1207,6 +1209,20 @@ async function checkAndResetDailyHabits() {
     }
     if (changed) {
       await dbUpsert('habits', h);
+    }
+  }
+  cacheLocal();
+}
+
+// igual que con habitos: una rutina completada se queda marcada para siempre si no la reiniciamos.
+// esto revisa si existe un registro de historial de HOY para cada rutina; si no, la desmarca
+async function checkAndResetDailyWorkouts() {
+  const todayStr = toLocalDateStr(new Date());
+  for (const w of appData.workouts) {
+    const doneToday = appData.workoutLogs.some(l => l.workout_id === w.id && toLocalDateStr(new Date(l.completed_at)) === todayStr);
+    if (w.completed !== doneToday) {
+      w.completed = doneToday;
+      await dbUpsert('workouts', w);
     }
   }
   cacheLocal();
