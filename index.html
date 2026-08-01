@@ -1941,7 +1941,7 @@ async function recordStudySession(isBreak) {
     id: Date.now() + Math.floor(Math.random() * 1000),
     subject_id: subjectId,
     subject_name: subject ? subject.name : null,
-    duration_minutes: Math.round(pomoTotal / 60),
+    duration_minutes: Math.round((pomoTotal / 60) * 100) / 100,
     is_break: isBreak,
     completed_at: new Date().toISOString(),
     user_id: currentUser?.id
@@ -1967,12 +1967,21 @@ function renderStudyHistory() {
         <div class="tx-icon" style="background: rgba(59,130,246,0.15);">📚</div>
         <div class="tx-info">
           <div class="tx-name">${s.subject_name || 'Sin materia especifica'}</div>
-          <div class="tx-category">${s.duration_minutes} min</div>
+          <div class="tx-category">${formatDurationLabel(s.duration_minutes)}</div>
         </div>
         <div style="font-size:11px; color:var(--text-muted); white-space:nowrap;">${date}</div>
       </div>
     `;
   }).join('');
+}
+
+// convierte minutos (con decimales) a un texto legible: "45 seg", "5 min", "5m 30s"
+function formatDurationLabel(minutes) {
+  const totalSeconds = Math.round(minutes * 60);
+  if (totalSeconds < 60) return `${totalSeconds} seg`;
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return s === 0 ? `${m} min` : `${m}m ${s}s`;
 }
 
 // actualiza la racha de dias seguidos estudiando (similar a la de habitos, pero global)
