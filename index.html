@@ -903,7 +903,7 @@ async function loadData() {
     try {
       const tenDaysAgo = new Date();
       tenDaysAgo.setDate(tenDaysAgo.getDate() - 9);
-      const tenDaysAgoStr = tenDaysAgo.toISOString().slice(0, 10);
+      const tenDaysAgoStr = toLocalDateStr(tenDaysAgo);
 
       const [habitsRes, workoutsRes, subjectsRes, txRes, budgetsRes, notesRes, logsRes, recurringRes, goalsRes, progressRes, workoutLogsRes, studySessionsRes, deadlinesRes] = await Promise.all([
         supabaseClient.from('habits').select('*').eq('user_id', currentUser.id),
@@ -1325,7 +1325,7 @@ function renderChart() {
   for (let i = 6; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    const dateStr = d.toISOString().slice(0, 10);
+    const dateStr = toLocalDateStr(d);
     labels.push(d.toLocaleDateString('es-ES', { weekday: 'short' }));
     data.push(countHabitLogsForDate(dateStr));
   }
@@ -1367,7 +1367,7 @@ function renderCalendar() {
     const d = new Date(today);
     d.setDate(d.getDate() + i);
     const isToday = i === 0;
-    const dateStr = d.toISOString().slice(0, 10);
+    const dateStr = toLocalDateStr(d);
     const dayName = d.toLocaleDateString('es-ES', { weekday: 'short' }).slice(0, 3);
     const dayNum = d.getDate();
     const doneCount = isToday ? appData.habits.filter(h => h.done).length : countHabitLogsForDate(dateStr);
@@ -1379,7 +1379,7 @@ function renderCalendar() {
 
 // muestra que habitos se completaron en un dia especifico del calendario
 function showDayDetail(dateStr) {
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = toLocalDateStr(new Date());
   const isToday = dateStr === todayStr;
   let habitNames;
   if (isToday) {
@@ -1441,7 +1441,7 @@ async function toggleHabit(id) {
     h.done = !h.done;
     if (h.done) h.streak++;
     else h.streak = Math.max(0, h.streak - 1);
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = toLocalDateStr(new Date());
     if (h.done) {
       const log = { id: Date.now() + Math.floor(Math.random() * 1000), habit_id: h.id, log_date: todayStr, done: true, user_id: currentUser?.id };
       appData.habitLogs = appData.habitLogs.filter(l => !(l.habit_id === h.id && l.log_date === todayStr));
@@ -3189,7 +3189,7 @@ function openModal(type, editData) {
       <textarea class="form-input" id="subjectNotesText" rows="8" placeholder="Escribe tus notas de esta materia aqui..." style="resize:vertical;">${editData.notes ? editData.notes.replace(/</g, '&lt;') : ''}</textarea>
       <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cerrar</button><button class="btn btn-primary" onclick="saveSubjectNotes(${editData.id})">Guardar</button></div>`;
   } else if (type === 'deadline') {
-    const todayVal = new Date().toISOString().slice(0, 10);
+    const todayVal = toLocalDateStr(new Date());
     html = `<div class="modal-title">Nuevo examen o entrega</div>
       <div class="form-group"><label class="form-label">Titulo</label><input type="text" class="form-input" id="newDeadlineTitle" placeholder="Ej: Examen parcial"></div>
       <div class="form-group"><label class="form-label">Materia (opcional)</label>
@@ -3202,10 +3202,10 @@ function openModal(type, editData) {
       <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="addDeadline()">Agregar</button></div>`;
   } else if (type === 'transaction') {
     const isEdit = !!editData;
-    const todayVal = new Date().toISOString().slice(0, 10);
+    const todayVal = toLocalDateStr(new Date());
     const t = editData || {};
     const type_ = t.type || 'expense';
-    const dateVal = t.created_at ? new Date(t.created_at).toISOString().slice(0, 10) : todayVal;
+    const dateVal = t.created_at ? toLocalDateStr(new Date(t.created_at)) : todayVal;
     const isCustomCat = t.category && !getTxCategories(type_).includes(t.category);
     html = `<div class="modal-title">${isEdit ? 'Editar transaccion' : 'Nueva transaccion'}</div>
       <div class="form-group"><label class="form-label">Nombre</label><input type="text" class="form-input" id="newTxName" placeholder="Ej: Cena" value="${isEdit ? escapeAttr(t.name) : ''}"></div>
