@@ -508,6 +508,7 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
           <div class="card-icon" style="background: rgba(59,130,246,0.15); color: var(--accent-study);">⏱️</div>
           Temporizador de estudio
         </div>
+        <div style="font-size:13px; color: var(--accent-study); font-weight:600;" id="studyStreakLabel">🔥 0 dias</div>
       </div>
       <div class="pomodoro-container">
         <div class="pomodoro-modes">
@@ -543,6 +544,25 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
       </div>
       <div class="subject-grid" id="subjectsGrid"></div>
       <button class="add-btn" style="margin-top: 12px;" onclick="openModal('subject')">+ Agregar materia</button>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon" style="background: rgba(59,130,246,0.15); color: var(--accent-study);">📅</div>
+          Examenes y entregas
+        </div>
+        <button class="btn btn-primary" style="padding: 8px 16px; font-size: 13px;" onclick="openModal('deadline')">+ Nueva</button>
+      </div>
+      <div id="deadlinesList"></div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon" style="background: rgba(59,130,246,0.15); color: var(--accent-study);">🗓️</div>
+          Historial de sesiones
+        </div>
+      </div>
+      <div id="studyHistoryList"></div>
     </div>
     <div class="card">
       <div class="card-header">
@@ -719,8 +739,10 @@ let appData = {
   habitLogs: [],
   recurringTransactions: [],
   savingsGoals: [],
-  gamification: { totalXp: 0 },
-  workoutLogs: []
+  gamification: { totalXp: 0, studyStreak: 0, lastStudyDate: null },
+  workoutLogs: [],
+  studySessions: [],
+  deadlines: []
 };
 
 let isOnline = navigator.onLine;
@@ -860,7 +882,7 @@ async function handleAuth() {
 async function logout() {
   await supabaseClient.auth.signOut();
   currentUser = null;
-  appData = { habits: [], workouts: [], subjects: [], transactions: [], budgets: [], notes: '', pomodoro_sessions: [], habitLogs: [], recurringTransactions: [], savingsGoals: [], gamification: { totalXp: 0 }, workoutLogs: [] };
+  appData = { habits: [], workouts: [], subjects: [], transactions: [], budgets: [], notes: '', pomodoro_sessions: [], habitLogs: [], recurringTransactions: [], savingsGoals: [], gamification: { totalXp: 0, studyStreak: 0, lastStudyDate: null }, workoutLogs: [], studySessions: [], deadlines: [] };
   showAuth();
 }
 
@@ -872,7 +894,7 @@ async function loadData() {
       tenDaysAgo.setDate(tenDaysAgo.getDate() - 9);
       const tenDaysAgoStr = tenDaysAgo.toISOString().slice(0, 10);
 
-      const [habitsRes, workoutsRes, subjectsRes, txRes, budgetsRes, notesRes, logsRes, recurringRes, goalsRes, progressRes, workoutLogsRes] = await Promise.all([
+      const [habitsRes, workoutsRes, subjectsRes, txRes, budgetsRes, notesRes, logsRes, recurringRes, goalsRes, progressRes, workoutLogsRes, studySessionsRes, deadlinesRes] = await Promise.all([
         supabaseClient.from('habits').select('*').eq('user_id', currentUser.id),
         supabaseClient.from('workouts').select('*').eq('user_id', currentUser.id),
         supabaseClient.from('subjects').select('*').eq('user_id', currentUser.id),
@@ -883,7 +905,9 @@ async function loadData() {
         supabaseClient.from('recurring_transactions').select('*').eq('user_id', currentUser.id),
         supabaseClient.from('savings_goals').select('*').eq('user_id', currentUser.id),
         supabaseClient.from('user_progress').select('*').eq('user_id', currentUser.id).maybeSingle(),
-        supabaseClient.from('workout_logs').select('*').eq('user_id', currentUser.id).order('completed_at', { ascending: false }).limit(200)
+        supabaseClient.from('workout_logs').select('*').eq('user_id', currentUser.id).order('completed_at', { ascending: false }).limit(200),
+        supabaseClient.from('study_sessions').select('*').eq('user_id', currentUser.id).order('completed_at', { ascending: false }).limit(200),
+        supabaseClient.from('study_deadlines').select('*').eq('user_id', currentUser.id)
       ]);
       const habits = habitsRes.data || [];
       const workouts = workoutsRes.data || [];
@@ -896,6 +920,8 @@ async function loadData() {
       const savingsGoals = goalsRes.data || [];
       const progress = progressRes.data;
       const workoutLogs = workoutLogsRes.data || [];
+      const studySessions = studySessionsRes.data || [];
+      const deadlines = deadlinesRes.data || [];
 
       const isBrandNewUser = habits.length === 0 && workouts.length === 0 &&
         subjects.length === 0 && transactions.length === 0 &&
@@ -911,8 +937,10 @@ async function loadData() {
         appData.habitLogs = [];
         appData.recurringTransactions = [];
         appData.savingsGoals = [];
-        appData.gamification = { totalXp: 0 };
+        appData.gamification = { totalXp: 0, studyStreak: 0, lastStudyDate: null };
         appData.workoutLogs = [];
+        appData.studySessions = [];
+        appData.deadlines = [];
         setTimeout(showWelcomeOnboarding, 400);
       } else {
         appData.habits = habits;
@@ -924,8 +952,14 @@ async function loadData() {
         appData.habitLogs = habitLogs;
         appData.recurringTransactions = recurringTransactions;
         appData.savingsGoals = savingsGoals;
-        appData.gamification = { totalXp: progress ? (progress.total_xp || 0) : 0 };
+        appData.gamification = {
+          totalXp: progress ? (progress.total_xp || 0) : 0,
+          studyStreak: progress ? (progress.study_streak || 0) : 0,
+          lastStudyDate: progress ? (progress.last_study_date || null) : null
+        };
         appData.workoutLogs = workoutLogs;
+        appData.studySessions = studySessions;
+        appData.deadlines = deadlines;
         await checkAndResetDailyHabits();
         await checkAndResetDailyWorkouts();
         await checkAndResetWeeklyStudyHours();
@@ -949,7 +983,7 @@ function loadFromLocal() {
   if (saved) {
     appData = JSON.parse(saved);
   } else {
-    appData = { habits: [], workouts: [], subjects: [], transactions: [], budgets: [], notes: '', pomodoro_sessions: [], habitLogs: [], recurringTransactions: [], savingsGoals: [], gamification: { totalXp: 0 }, workoutLogs: [] };
+    appData = { habits: [], workouts: [], subjects: [], transactions: [], budgets: [], notes: '', pomodoro_sessions: [], habitLogs: [], recurringTransactions: [], savingsGoals: [], gamification: { totalXp: 0, studyStreak: 0, lastStudyDate: null }, workoutLogs: [], studySessions: [], deadlines: [] };
     setTimeout(showWelcomeOnboarding, 400);
   }
 }
@@ -1017,7 +1051,9 @@ async function pushAllToSupabase() {
     for (const rec of appData.recurringTransactions) await dbUpsert('recurring_transactions', rec);
     for (const goal of appData.savingsGoals) await dbUpsert('savings_goals', goal);
     for (const wl of appData.workoutLogs) await dbUpsert('workout_logs', wl);
-    await dbUpsert('user_progress', { total_xp: appData.gamification.totalXp }, 'user_id');
+    for (const ss of appData.studySessions) await dbUpsert('study_sessions', ss);
+    for (const dl of appData.deadlines) await dbUpsert('study_deadlines', dl);
+    await dbUpsert('user_progress', { total_xp: appData.gamification.totalXp, study_streak: appData.gamification.studyStreak, last_study_date: appData.gamification.lastStudyDate }, 'user_id');
     await dbUpsert('notes', { content: appData.notes }, 'user_id');
     updateSyncStatus(true);
   } catch (e) {
@@ -1055,6 +1091,9 @@ function renderAll() {
   renderWorkoutHistory();
   renderWeightProgressChart();
   renderSubjects();
+  renderStudyStreakLabel();
+  renderStudyHistory();
+  renderDeadlines();
   renderTransactions();
   renderBudgets();
   renderRecurring();
@@ -1136,7 +1175,16 @@ async function addXp(amount) {
     celebrateConfetti();
     showToast(`¡Subiste a nivel ${after}: ${getLevelTitle(after)}! 🎉`, 'success');
   }
-  await dbUpsert('user_progress', { total_xp: appData.gamification.totalXp }, 'user_id');
+  await syncGamification();
+}
+
+// guarda XP, racha de estudio y ultima fecha de estudio en Supabase de una sola vez
+async function syncGamification() {
+  await dbUpsert('user_progress', {
+    total_xp: appData.gamification.totalXp,
+    study_streak: appData.gamification.studyStreak,
+    last_study_date: appData.gamification.lastStudyDate
+  }, 'user_id');
 }
 
 function renderLevelCard() {
@@ -1686,14 +1734,14 @@ let timerSeconds = 45;
 let timerRunning = false;
 
 // pequeno beep sin necesidad de archivos de audio externos, para avisar que termino el descanso
-function playBeep() {
+function playBeep(freq) {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
     gain.connect(ctx.destination);
-    osc.frequency.value = 880;
+    osc.frequency.value = freq || 880;
     gain.gain.setValueAtTime(0.15, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
     osc.start();
@@ -1701,6 +1749,18 @@ function playBeep() {
   } catch (e) {
     // si el navegador bloquea audio sin interaccion previa, simplemente no suena
   }
+}
+
+// dos tonos ascendentes (mas energico) para avisar que toca volver a estudiar
+function playStudyEndSound() {
+  playBeep(660);
+  setTimeout(() => playBeep(880), 180);
+}
+
+// un tono descendente y mas suave para avisar que termino el descanso
+function playBreakEndSound() {
+  playBeep(880);
+  setTimeout(() => playBeep(660), 180);
 }
 
 function formatTime(sec) {
@@ -1825,11 +1885,18 @@ function togglePomodoro() {
         pomoRunning = false;
         btn.textContent = 'Iniciar';
         btn.className = 'timer-btn start';
-        showToast('Sesion completada!', 'success');
+        const wasBreak = isCurrentPomodoroBreak();
+        showToast(wasBreak ? 'Descanso terminado!' : 'Sesion de estudio completada!', 'success');
+        if (navigator.vibrate) navigator.vibrate(wasBreak ? [150] : [150, 80, 150]);
+        if (wasBreak) playBreakEndSound(); else playStudyEndSound();
         appData.pomodoro_sessions.push({ date: new Date().toISOString(), duration: pomoTotal / 60 });
         cacheLocal();
-        addXp(15);
-        addPomodoroHoursToSubject();
+        recordStudySession(wasBreak);
+        if (!wasBreak) {
+          addXp(15);
+          addPomodoroHoursToSubject();
+          updateStudyStreak();
+        }
         pomoSeconds = pomoDuration;
         pomoTotal = pomoDuration;
         document.getElementById('pomoTimer').textContent = formatTime(pomoDuration);
@@ -1860,10 +1927,85 @@ function populatePomoSubjectSelect() {
 }
 
 // si la sesion completada era de estudio (no un descanso) y hay una materia elegida, le suma las horas
-async function addPomodoroHoursToSubject() {
+// true si el modo activo del temporizador es un descanso, no una sesion de estudio
+function isCurrentPomodoroBreak() {
   const activeMode = document.querySelector('.pomodoro-mode.active');
-  const isBreak = activeMode && !activeMode.textContent.includes('Estudio');
-  if (isBreak) return;
+  return !!(activeMode && !activeMode.textContent.includes('Estudio'));
+}
+
+// guarda un registro de la sesion (de estudio o descanso) en el historial
+async function recordStudySession(isBreak) {
+  const subjectId = parseInt(document.getElementById('pomoSubjectSelect')?.value) || null;
+  const subject = subjectId ? appData.subjects.find(x => x.id === subjectId) : null;
+  const session = {
+    id: Date.now() + Math.floor(Math.random() * 1000),
+    subject_id: subjectId,
+    subject_name: subject ? subject.name : null,
+    duration_minutes: Math.round(pomoTotal / 60),
+    is_break: isBreak,
+    completed_at: new Date().toISOString(),
+    user_id: currentUser?.id
+  };
+  appData.studySessions.unshift(session);
+  cacheLocal();
+  renderStudyHistory();
+  await dbUpsert('study_sessions', session);
+}
+
+function renderStudyHistory() {
+  const list = document.getElementById('studyHistoryList');
+  if (!list) return;
+  const studyOnly = appData.studySessions.filter(s => !s.is_break);
+  if (studyOnly.length === 0) {
+    list.innerHTML = emptyState('🗓️', 'Aún no completaste ninguna sesion de estudio. Tu historial aparecerá aquí.');
+    return;
+  }
+  list.innerHTML = studyOnly.slice(0, 15).map(s => {
+    const date = new Date(s.completed_at).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    return `
+      <div class="transaction-item">
+        <div class="tx-icon" style="background: rgba(59,130,246,0.15);">📚</div>
+        <div class="tx-info">
+          <div class="tx-name">${s.subject_name || 'Sin materia especifica'}</div>
+          <div class="tx-category">${s.duration_minutes} min</div>
+        </div>
+        <div style="font-size:11px; color:var(--text-muted); white-space:nowrap;">${date}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+// actualiza la racha de dias seguidos estudiando (similar a la de habitos, pero global)
+async function updateStudyStreak() {
+  const todayStr = toLocalDateStr(new Date());
+  if (appData.gamification.lastStudyDate === todayStr) {
+    renderStudyStreakLabel();
+    return; // ya se conto hoy
+  }
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = toLocalDateStr(yesterday);
+
+  if (appData.gamification.lastStudyDate === yesterdayStr) {
+    appData.gamification.studyStreak = (appData.gamification.studyStreak || 0) + 1;
+  } else {
+    appData.gamification.studyStreak = 1;
+  }
+  appData.gamification.lastStudyDate = todayStr;
+  cacheLocal();
+  renderStudyStreakLabel();
+  await syncGamification();
+}
+
+function renderStudyStreakLabel() {
+  const el = document.getElementById('studyStreakLabel');
+  if (!el) return;
+  const streak = appData.gamification.studyStreak || 0;
+  el.textContent = `🔥 ${streak} dia${streak === 1 ? '' : 's'}`;
+}
+
+async function addPomodoroHoursToSubject() {
+  if (isCurrentPomodoroBreak()) return;
   const subjectId = parseInt(document.getElementById('pomoSubjectSelect')?.value);
   if (!subjectId) return;
   const s = appData.subjects.find(x => x.id === subjectId);
@@ -1894,6 +2036,70 @@ async function checkAndResetWeeklyStudyHours() {
     }
   }
   cacheLocal();
+}
+
+// ---------- examenes y entregas ----------
+function renderDeadlines() {
+  const list = document.getElementById('deadlinesList');
+  if (!list) return;
+  if (appData.deadlines.length === 0) {
+    list.innerHTML = emptyState('📅', 'Aún no tienes examenes ni entregas registradas.');
+    return;
+  }
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const sorted = [...appData.deadlines].sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
+  list.innerHTML = sorted.map(d => {
+    const due = new Date(d.due_date + 'T00:00:00');
+    const daysLeft = Math.round((due - todayStart) / (1000 * 60 * 60 * 24));
+    let daysLabel, color;
+    if (daysLeft < 0) { daysLabel = 'Ya paso'; color = 'var(--text-muted)'; }
+    else if (daysLeft === 0) { daysLabel = 'Hoy'; color = 'var(--danger)'; }
+    else if (daysLeft === 1) { daysLabel = 'Mañana'; color = 'var(--danger)'; }
+    else if (daysLeft <= 3) { daysLabel = `En ${daysLeft} dias`; color = 'var(--danger)'; }
+    else { daysLabel = `En ${daysLeft} dias`; color = 'var(--text-muted)'; }
+    const dateLabel = due.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+    return `
+      <div class="transaction-item">
+        <div class="tx-icon" style="background: rgba(59,130,246,0.15);">📌</div>
+        <div class="tx-info">
+          <div class="tx-name">${d.title}</div>
+          <div class="tx-category">${d.subject_name || 'General'} · ${dateLabel}</div>
+        </div>
+        <div style="font-size:12px; font-weight:600; color:${color}; white-space:nowrap;">${daysLabel}</div>
+        <span class="delete-icon" onclick="deleteDeadline(${d.id})" title="Eliminar">🗑</span>
+      </div>
+    `;
+  }).join('');
+}
+
+async function addDeadline() {
+  const title = document.getElementById('newDeadlineTitle').value.trim();
+  const date = document.getElementById('newDeadlineDate').value;
+  const subjectId = parseInt(document.getElementById('newDeadlineSubject').value) || null;
+  if (!title || !date) {
+    alert('Ponle un titulo y una fecha 🙂');
+    return;
+  }
+  const subject = subjectId ? appData.subjects.find(x => x.id === subjectId) : null;
+  const deadline = { id: Date.now(), title, due_date: date, subject_id: subjectId, subject_name: subject ? subject.name : null, user_id: currentUser?.id };
+  appData.deadlines.push(deadline);
+  cacheLocal();
+  closeModal();
+  renderDeadlines();
+  showToast('Fecha agregada', 'success');
+  await dbUpsert('study_deadlines', deadline);
+}
+
+async function deleteDeadline(id) {
+  const d = appData.deadlines.find(x => x.id === id);
+  if (!d) return;
+  if (!confirm(`¿Eliminar "${d.title}"?`)) return;
+  appData.deadlines = appData.deadlines.filter(x => x.id !== id);
+  cacheLocal();
+  renderDeadlines();
+  showToast('Eliminado');
+  await dbDelete('study_deadlines', { id });
 }
 
 function renderSubjects() {
@@ -2917,6 +3123,18 @@ function openModal(type, editData) {
     html = `<div class="modal-title">${editData.emoji} Notas de ${escapeAttr(editData.name)}</div>
       <textarea class="form-input" id="subjectNotesText" rows="8" placeholder="Escribe tus notas de esta materia aqui..." style="resize:vertical;">${editData.notes ? editData.notes.replace(/</g, '&lt;') : ''}</textarea>
       <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cerrar</button><button class="btn btn-primary" onclick="saveSubjectNotes(${editData.id})">Guardar</button></div>`;
+  } else if (type === 'deadline') {
+    const todayVal = new Date().toISOString().slice(0, 10);
+    html = `<div class="modal-title">Nuevo examen o entrega</div>
+      <div class="form-group"><label class="form-label">Titulo</label><input type="text" class="form-input" id="newDeadlineTitle" placeholder="Ej: Examen parcial"></div>
+      <div class="form-group"><label class="form-label">Materia (opcional)</label>
+        <select class="form-select" id="newDeadlineSubject">
+          <option value="">General</option>
+          ${appData.subjects.map(s => `<option value="${s.id}">${s.emoji} ${s.name}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Fecha</label><input type="date" class="form-input" id="newDeadlineDate" value="${todayVal}"></div>
+      <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="addDeadline()">Agregar</button></div>`;
   } else if (type === 'transaction') {
     const isEdit = !!editData;
     const todayVal = new Date().toISOString().slice(0, 10);
