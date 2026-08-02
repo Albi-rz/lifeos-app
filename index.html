@@ -130,6 +130,9 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
 .emoji-preset-btn { font-size: 18px; padding: 6px 9px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); cursor: pointer; transition: all 0.15s ease; }
 .emoji-preset-btn:hover { border-color: var(--accent-study); }
 .emoji-preset-btn.selected { border-color: var(--accent-study); background: rgba(59,130,246,0.15); }
+.color-swatch-btn { width: 30px; height: 30px; border-radius: 8px; cursor: pointer; border: 2px solid transparent; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1); transition: all 0.15s ease; display: inline-block; }
+.color-swatch-btn:hover { transform: scale(1.1); }
+.color-swatch-btn.selected { border-color: var(--text); box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--text); }
 .delete-icon:hover { opacity: 1; color: var(--danger); }
 .add-btn { width: 100%; padding: 14px; border: 2px dashed var(--border); border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 8px; }
 .add-btn:hover { border-color: var(--accent-primary); color: var(--accent-primary); background: rgba(99,102,241,0.05); }
@@ -3103,6 +3106,24 @@ function getTxCategories(type) {
 }
 
 // emoji por defecto de cada categoria fija de transaccion
+// nombres legibles para los colores de presupuesto/metas (en vez de mostrar el codigo hex)
+const BUDGET_COLOR_NAMES = {
+  '#ef4444': 'Rojo', '#f59e0b': 'Naranja', '#3b82f6': 'Azul', '#ec4899': 'Rosa',
+  '#10b981': 'Verde', '#6366f1': 'Indigo', '#8b5cf6': 'Morado'
+};
+
+function selectBudgetColor(color, btnEl) {
+  document.getElementById('newBudgetColor').value = color;
+  document.querySelectorAll('#budgetColorPresets .color-swatch-btn').forEach(b => b.classList.remove('selected'));
+  if (btnEl) btnEl.classList.add('selected');
+}
+
+function selectGoalColor(color, btnEl) {
+  document.getElementById('newGoalColor').value = color;
+  document.querySelectorAll('#goalColorPresets .color-swatch-btn').forEach(b => b.classList.remove('selected'));
+  if (btnEl) btnEl.classList.add('selected');
+}
+
 const CATEGORY_EMOJIS = {
   'Comida': '🍔', 'Vivienda': '🏠', 'Transporte': '🚗', 'Entretenimiento': '🎬',
   'Salud': '🏥', 'Educacion': '📚', 'Ropa': '👕', 'Servicios': '💡',
@@ -3258,9 +3279,10 @@ function openModal(type, editData) {
       </div>
       <div class="form-group"><label class="form-label">Limite mensual</label><input type="number" inputmode="decimal" class="form-input" id="newBudgetLimit" placeholder="0" value="${isEdit ? editData.budget_limit : ''}"></div>
       <div class="form-group"><label class="form-label">Color</label>
-        <select class="form-select" id="newBudgetColor">
-          ${colors.map(c => `<option value="${c}" ${isEdit && editData.color === c ? 'selected' : ''} style="background:${c};">${c}</option>`).join('')}
-        </select>
+        <div id="budgetColorPresets" style="display:flex; flex-wrap:wrap; gap:8px;">
+          ${colors.map(c => `<span class="color-swatch-btn ${(isEdit ? editData.color : colors[0]) === c ? 'selected' : ''}" style="background:${c};" title="${BUDGET_COLOR_NAMES[c] || c}" onclick="selectBudgetColor('${c}', this)"></span>`).join('')}
+        </div>
+        <input type="hidden" id="newBudgetColor" value="${isEdit ? editData.color : colors[0]}">
       </div>
       <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="${isEdit ? 'updateBudget()' : 'addBudget()'}">${isEdit ? 'Guardar' : 'Agregar'}</button></div>`;
   } else if (type === 'recurring') {
@@ -3284,7 +3306,10 @@ function openModal(type, editData) {
       <div class="form-group"><label class="form-label">Ya tengo ahorrado (opcional)</label><input type="number" inputmode="decimal" class="form-input" id="newGoalCurrent" placeholder="0" value="0"></div>
       <div class="form-group"><label class="form-label">Fecha limite (opcional)</label><input type="date" class="form-input" id="newGoalDate"></div>
       <div class="form-group"><label class="form-label">Color</label>
-        <select class="form-select" id="newGoalColor">${colors.map(c => `<option value="${c}" style="background:${c};">${c}</option>`).join('')}</select>
+        <div id="goalColorPresets" style="display:flex; flex-wrap:wrap; gap:8px;">
+          ${colors.map((c, i) => `<span class="color-swatch-btn ${i === 0 ? 'selected' : ''}" style="background:${c};" title="${BUDGET_COLOR_NAMES[c] || c}" onclick="selectGoalColor('${c}', this)"></span>`).join('')}
+        </div>
+        <input type="hidden" id="newGoalColor" value="${colors[0]}">
       </div>
       <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="addSavingsGoal()">Crear</button></div>`;
   } else if (type === 'addToGoal') {
