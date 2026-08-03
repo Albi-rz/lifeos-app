@@ -328,6 +328,11 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
     </div>
     <div style="display:flex;align-items:center;gap:12px;">
       <button class="theme-toggle-btn" id="themeToggleBtn" onclick="toggleTheme()" title="Cambiar tema">🌙</button>
+      <div style="position:relative;">
+        <button class="theme-toggle-btn" id="notifBtn" onclick="toggleNotifPanel()" title="Notificaciones">🔔</button>
+        <span id="notifBadge" style="display:none; position:absolute; top:-2px; right:-2px; background:var(--danger); color:white; font-size:10px; font-weight:700; border-radius:50%; width:16px; height:16px; align-items:center; justify-content:center;"></span>
+        <div id="notifPanel" style="display:none; position:absolute; top:42px; right:0; width:290px; max-height:340px; overflow-y:auto; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); box-shadow:var(--shadow-lg); z-index:300; padding:8px;"></div>
+      </div>
       <div class="sync-status" id="syncStatus">
         <div class="sync-dot" id="syncDot"></div>
         <span id="syncText">Sincronizando...</span>
@@ -860,6 +865,91 @@ function updateThemeButton() {
   btn.textContent = current === 'dark' ? '🌙' : '☀️';
 }
 
+// ---------- notificaciones internas ----------
+// calcula recordatorios relevantes en base al estado actual (no se guardan en ningun lado, se recalculan siempre)
+function computeNotifications() {
+  const items = [];
+  const now = new Date();
+  const hour = now.getHours();
+
+  // habitos sin completar, solo se avisa pasado el mediodia para no molestar apenas abres la app en la manana
+  if (hour >= 12 && appData.habits.length > 0) {
+    const pending = appData.habits.filter(h => !h.done).length;
+    if (pending > 0) {
+      items.push({ icon: '🌱', text: `Te faltan ${pending} habito${pending === 1 ? '' : 's'} por completar hoy` });
+    }
+  }
+
+  // examenes/entregas dentro de los proximos 3 dias
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  appData.deadlines.forEach(d => {
+    const due = new Date(d.due_date + 'T00:00:00');
+    const daysLeft = Math.round((due - todayStart) / (1000 * 60 * 60 * 24));
+    if (daysLeft >= 0 && daysLeft <= 3) {
+      const when = daysLeft === 0 ? 'hoy' : daysLeft === 1 ? 'mañana' : `en ${daysLeft} dias`;
+      items.push({ icon: '📅', text: `"${d.title}" es ${when}` });
+    }
+  });
+
+  // presupuestos cerca o por encima del limite este mes
+  appData.budgets.forEach(b => {
+    if (!b.budget_limit) return;
+    const spent = spentThisMonthForCategory(b.category);
+    const pct = spent / b.budget_limit;
+    if (pct >= 0.8) {
+      items.push({ icon: pct >= 1 ? '🚨' : '⚠️', text: `Presupuesto de ${b.category} al ${Math.round(pct * 100)}%` });
+    }
+  });
+
+  // metas de ahorro cerca de cumplirse
+  appData.savingsGoals.forEach(g => {
+    const pct = g.current_amount / g.target_amount;
+    if (pct >= 0.9 && pct < 1) {
+      items.push({ icon: '🎯', text: `Estas cerca de tu meta "${g.name}" (${Math.round(pct * 100)}%)` });
+    }
+  });
+
+  return items;
+}
+
+function renderNotifications() {
+  const badge = document.getElementById('notifBadge');
+  const panel = document.getElementById('notifPanel');
+  if (!badge || !panel) return;
+  const items = computeNotifications();
+  if (items.length > 0) {
+    badge.style.display = 'flex';
+    badge.textContent = items.length > 9 ? '9+' : items.length;
+  } else {
+    badge.style.display = 'none';
+  }
+  panel.innerHTML = items.length === 0
+    ? `<div style="padding:16px; text-align:center; color:var(--text-muted); font-size:13px;">Sin novedades por ahora 🎉</div>`
+    : items.map(n => `
+        <div style="display:flex; gap:10px; align-items:flex-start; padding:10px; border-radius:10px; font-size:13px;">
+          <span style="font-size:16px;">${n.icon}</span>
+          <span>${n.text}</span>
+        </div>
+      `).join('');
+}
+
+function toggleNotifPanel() {
+  const panel = document.getElementById('notifPanel');
+  const willShow = panel.style.display === 'none';
+  panel.style.display = willShow ? 'block' : 'none';
+  if (willShow) renderNotifications();
+}
+
+// cierra el panel de notificaciones si se hace clic fuera de el
+document.addEventListener('click', (e) => {
+  const panel = document.getElementById('notifPanel');
+  const btn = document.getElementById('notifBtn');
+  if (!panel || panel.style.display === 'none') return;
+  if (!panel.contains(e.target) && e.target !== btn) {
+    panel.style.display = 'none';
+  }
+});
+
 function chartTextColor() {
   return (document.documentElement.getAttribute('data-theme') === 'light') ? '#6b7280' : '#8a8a9a';
 }
@@ -1145,6 +1235,7 @@ function renderAll() {
   renderNextSteps();
   loadNotes();
   renderChart();
+  renderNotifications();
 }
 
 function updateDate() {
@@ -1496,6 +1587,7 @@ async function toggleHabit(id) {
     renderNextSteps();
     renderCalendar();
     renderChart();
+    renderNotifications();
     animateHabitItem(h.id, h.done);
     showToast(h.done ? `${h.name} completado!` : 'Habito desmarcado', h.done ? 'success' : undefined);
     const isAllDoneNow = appData.habits.length > 0 && appData.habits.every(x => x.done);
@@ -2157,6 +2249,7 @@ async function addDeadline() {
   cacheLocal();
   closeModal();
   renderDeadlines();
+  renderNotifications();
   showToast('Fecha agregada', 'success');
   await dbUpsert('study_deadlines', deadline);
 }
@@ -2168,6 +2261,7 @@ async function deleteDeadline(id) {
   appData.deadlines = appData.deadlines.filter(x => x.id !== id);
   cacheLocal();
   renderDeadlines();
+  renderNotifications();
   showToast('Eliminado');
   await dbDelete('study_deadlines', { id });
 }
@@ -2944,6 +3038,7 @@ async function addToGoal(id) {
   cacheLocal();
   closeModal();
   renderSavingsGoals();
+  renderNotifications();
   const nowReached = g.current_amount >= g.target_amount;
   if (!wasReached && nowReached) {
     celebrateConfetti();
