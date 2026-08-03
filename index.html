@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#6366f1">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="LifeOS">
 <title>LifeOS - Tu Sistema de Crecimiento</title>
 <script>
   // se aplica de inmediato, antes de pintar, para evitar el parpadeo del tema incorrecto
@@ -815,6 +822,13 @@ function showApp() {
 // evita que se puedan escribir letras en CUALQUIER campo numerico de la app, sin tener que
 // tocar cada input por separado (algunos navegadores/teclados moviles dejan pasar letras
 // en <input type="number" inputmode="decimal"> a pesar de que no deberian)
+// registra el service worker para que la app se pueda instalar (PWA) y abra mas rapido
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch((e) => console.error('Error registrando service worker:', e));
+  });
+}
+
 document.addEventListener('input', (e) => {
   if (e.target.tagName === 'INPUT' && e.target.type === 'number') {
     const original = e.target.value;
