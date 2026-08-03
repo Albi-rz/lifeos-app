@@ -1440,6 +1440,7 @@ function renderHabits() {
         <div class="habit-streak"><span class="fire-icon">🔥</span> ${h.streak} dias de racha</div>
       </div>
       <span class="habit-tag tag-${h.category}">${h.category}</span>
+      <span class="delete-icon" onclick="event.stopPropagation(); editHabit(${h.id})" title="Editar">✏️</span>
       <span class="delete-icon" onclick="event.stopPropagation(); deleteHabit(${h.id})" title="Eliminar">🗑</span>
     </div>
   `).join('');
@@ -1560,6 +1561,7 @@ function renderWorkouts() {
         </div>
         <div style="display:flex; align-items:center; gap:8px;">
           <span class="workout-duration">${w.duration}</span>
+          <span class="delete-icon" onclick="event.stopPropagation(); editWorkout(${w.id})" title="Editar">✏️</span>
           <span class="delete-icon" onclick="event.stopPropagation(); deleteWorkout(${w.id})" title="Eliminar">🗑</span>
         </div>
       </div>
@@ -3202,15 +3204,25 @@ function openModal(type, editData) {
   const content = document.getElementById('modalContent');
   let html = '';
   if (type === 'habit') {
-    html = `<div class="modal-title">Nuevo habito</div>
-      <div class="form-group"><label class="form-label">Nombre del habito</label><input type="text" class="form-input" id="newHabitName" placeholder="Ej: Leer 30 min"></div>
-      <div class="form-group"><label class="form-label">Categoria</label><select class="form-select" id="newHabitCategory"><option value="salud">Salud</option><option value="aprendizaje">Aprendizaje</option><option value="productividad">Productividad</option><option value="bienestar">Bienestar</option></select></div>
-      <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="addHabit()">Agregar</button></div>`;
+    const isEdit = !!editData;
+    const h = editData || {};
+    html = `<div class="modal-title">${isEdit ? 'Editar habito' : 'Nuevo habito'}</div>
+      <div class="form-group"><label class="form-label">Nombre del habito</label><input type="text" class="form-input" id="newHabitName" placeholder="Ej: Leer 30 min" value="${isEdit ? escapeAttr(h.name) : ''}"></div>
+      <div class="form-group"><label class="form-label">Categoria</label><select class="form-select" id="newHabitCategory">
+        <option value="salud" ${isEdit && h.category === 'salud' ? 'selected' : ''}>Salud</option>
+        <option value="aprendizaje" ${isEdit && h.category === 'aprendizaje' ? 'selected' : ''}>Aprendizaje</option>
+        <option value="productividad" ${isEdit && h.category === 'productividad' ? 'selected' : ''}>Productividad</option>
+        <option value="bienestar" ${isEdit && h.category === 'bienestar' ? 'selected' : ''}>Bienestar</option>
+      </select></div>
+      <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="${isEdit ? `updateHabit(${h.id})` : 'addHabit()'}">${isEdit ? 'Guardar' : 'Agregar'}</button></div>`;
   } else if (type === 'workout') {
-    html = `<div class="modal-title">Nueva rutina</div>
-      <div class="form-group"><label class="form-label">Nombre</label><input type="text" class="form-input" id="newWorkoutName" placeholder="Ej: Full Body"></div>
-      <div class="form-group"><label class="form-label">Duracion (min)</label><input type="number" inputmode="decimal" class="form-input" id="newWorkoutDuration" value="45"></div>
-      <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="addWorkout()">Crear</button></div>`;
+    const isEdit = !!editData;
+    const w = editData || {};
+    const durationNum = isEdit ? parseInt(w.duration) || 45 : 45;
+    html = `<div class="modal-title">${isEdit ? 'Editar rutina' : 'Nueva rutina'}</div>
+      <div class="form-group"><label class="form-label">Nombre</label><input type="text" class="form-input" id="newWorkoutName" placeholder="Ej: Full Body" value="${isEdit ? escapeAttr(w.name) : ''}"></div>
+      <div class="form-group"><label class="form-label">Duracion (min)</label><input type="number" inputmode="decimal" class="form-input" id="newWorkoutDuration" value="${durationNum}"></div>
+      <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="${isEdit ? `updateWorkout(${w.id})` : 'addWorkout()'}">${isEdit ? 'Guardar' : 'Crear'}</button></div>`;
   } else if (type === 'subject') {
     const isEdit = !!editData;
     const s = editData || {};
@@ -3389,6 +3401,26 @@ async function addHabit() {
   await dbUpsert('habits', habit);
 }
 
+function editHabit(id) {
+  const h = appData.habits.find(x => x.id === id);
+  if (h) openModal('habit', h);
+}
+
+async function updateHabit(id) {
+  const h = appData.habits.find(x => x.id === id);
+  if (!h) return;
+  const name = document.getElementById('newHabitName').value.trim();
+  const category = document.getElementById('newHabitCategory').value;
+  if (!name) return;
+  h.name = name;
+  h.category = category;
+  cacheLocal();
+  closeModal();
+  renderHabits();
+  showToast('Habito actualizado', 'success');
+  await dbUpsert('habits', h);
+}
+
 async function addWorkout() {
   const name = document.getElementById('newWorkoutName').value.trim();
   const duration = document.getElementById('newWorkoutDuration').value;
@@ -3400,6 +3432,26 @@ async function addWorkout() {
   renderWorkouts();
   showToast('Rutina creada', 'success');
   await dbUpsert('workouts', workout);
+}
+
+function editWorkout(id) {
+  const w = appData.workouts.find(x => x.id === id);
+  if (w) openModal('workout', w);
+}
+
+async function updateWorkout(id) {
+  const w = appData.workouts.find(x => x.id === id);
+  if (!w) return;
+  const name = document.getElementById('newWorkoutName').value.trim();
+  const duration = document.getElementById('newWorkoutDuration').value;
+  if (!name) return;
+  w.name = name;
+  w.duration = duration + ' min';
+  cacheLocal();
+  closeModal();
+  renderWorkouts();
+  showToast('Rutina actualizada', 'success');
+  await dbUpsert('workouts', w);
 }
 
 async function addSubject() {
