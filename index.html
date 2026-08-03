@@ -289,6 +289,13 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
   .card-header .header-actions { width: 100%; flex: none; }
   .card-header .header-actions .btn { flex: 1 1 auto; font-size: 12px !important; padding: 8px 10px !important; }
   .finance-range-selector { flex-wrap: nowrap; }
+  .lifeos-header > div:last-child { gap: 6px !important; }
+  .theme-toggle-btn { width: 30px; height: 30px; font-size: 14px; }
+  .sync-status #syncText { display: none; }
+  .sync-status { padding: 6px; gap: 0; }
+  .user-avatar { width: 28px; height: 28px; font-size: 12px; }
+  .logout-btn { padding: 6px 10px; font-size: 11px; }
+  .user-info { gap: 6px; }
 }
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
@@ -331,7 +338,7 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
       <div style="position:relative;">
         <button class="theme-toggle-btn" id="notifBtn" onclick="toggleNotifPanel()" title="Notificaciones">🔔</button>
         <span id="notifBadge" style="display:none; position:absolute; top:-2px; right:-2px; background:var(--danger); color:white; font-size:10px; font-weight:700; border-radius:50%; width:16px; height:16px; align-items:center; justify-content:center;"></span>
-        <div id="notifPanel" style="display:none; position:absolute; top:42px; right:0; width:290px; max-height:340px; overflow-y:auto; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); box-shadow:var(--shadow-lg); z-index:300; padding:8px;"></div>
+        <div id="notifPanel" style="display:none; position:absolute; top:42px; right:0; width:min(290px, calc(100vw - 32px)); max-height:340px; overflow-y:auto; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); box-shadow:var(--shadow-lg); z-index:300; padding:8px;"></div>
       </div>
       <div class="sync-status" id="syncStatus">
         <div class="sync-dot" id="syncDot"></div>
